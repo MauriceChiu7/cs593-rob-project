@@ -87,8 +87,10 @@ def getJointStates(uid, jointIndices):
     jointID = 0
     for joint in jointStates:
         print(f"Joint ID:       {jointID}")
-        print(f"Joint Position: {joint[0]}")
-        print(f"Joint velocity: {joint[1]}\n")
+        print(f"jointPosition: {joint[0]}")
+        print(f"jointVelocity: {joint[1]}")
+        print(f"jointReactionForces: {joint[2]}")
+        print(f"appliedJointMotorTorque: {joint[3]}\n")
         jointID += 1
     return jointStates
 
