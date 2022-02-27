@@ -4,22 +4,8 @@ import os
 import pybullet_data
 from ur5pybullet import ur5
 
-"""
-member functions:
-__init__
-
-Accessors: 
-getActionDimension()
-getObservationDimension()
-getObservation()
-
-Mutators:
-reset()
-resetJointPoses()
-setPosition(pos, quat)
-action(motorCommands)
-move_to(position_delta, mode='abs', noise=False, clip=False)
-"""
+END_EFFECTOR_INDEX = 7 # The end effector link index
+# JOINT_TYPE_LIST = ["REVOLUTE", "PRISMATIC", "SPHERICAL", "PLANAR", "FIXED"]
 
 ## Creates an instance of the physics server
 p.connect(p.GUI)
@@ -37,7 +23,15 @@ urdfFlags = p.URDF_USE_SELF_COLLISION
 ## Loads the UR5 into the environment
 path = f"{os.getcwd()}/ur5pybullet"
 os.chdir(path) # Needed to change directory to load the UR5
-handy = ur5.ur5() # Creating an instance of the UR5
+# handy = ur5.ur5() # Creating an instance of the UR5
+handy = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags=p.URDF_USE_INERTIA_FROM_FILE)
+
+for l0 in range(p.getNumJoints(handy)):
+    for l1 in range(p.getNumJoints(handy)):
+        if (not l1>l0):
+            enableCollision = 1
+            # print("collision for pair",l0,l1, p.getJointInfo(handy,l0)[12],p.getJointInfo(handy,l1)[12], "enabled=",enableCollision)
+            p.setCollisionFilterPair(handy, handy, l1, l0, enableCollision)
 
 ## Getting UR5's state information
 def getLinkState(uid, linkIndex, computeLinkVelocity):
@@ -55,7 +49,7 @@ def getLinkState(uid, linkIndex, computeLinkVelocity):
 print("\n=== Environment Info (End Effector Link State) ===\n")
 print('The "linkWorldPosition" is the x, y, and z position of the UR5\'s end effector.')
 print('The "linkWorldOrientation" is the orientation of the UR5\'s end effector.\n')
-getLinkState(handy.uid, handy.endEffectorIndex, 1)
+getLinkState(handy, END_EFFECTOR_INDEX, 1)
 print("\n================ Joint Info ================\n")
 
 
@@ -84,25 +78,13 @@ def getJointsInfo(uid):
         print(f"parentFramePos:             {info[14]}")
         print(f"parentFrameOrn:             {info[15]}")
         print(f"parentIndex:                {info[15]}\n")
+        # if info[2]==1: # set revolute joint to static
+        #     p.setJointMotorControl2(uid, info[0], p.VELOCITY_CONTROL, targetVelocity=0, force=0)
 
 
 print("Joint Info: ")
-getJointsInfo(handy.uid)
+getJointsInfo(handy)
 print("================================\n")
-
-# def getJointStates(uid, jointIndices):
-#     jointStates = p.getJointStates(uid, jointIndices)
-#     for joint in jointStates:
-#         print(f"jointPosition: {joint[0]}")
-#         print(f"jointVelocity: {joint[1]}")
-#         print(f"jointReactionForces: {joint[2]}")
-#         print(f"appliedJointMotorTorque: {joint[3]}")
-#         jointID += 1
-#     return jointStates
-
-# print("Joint States: ")
-# getJointStates(handy.uid, handy.active_joint_ids)
-# print("================================\n")
 
 while(1):
     # Looping the simulation
