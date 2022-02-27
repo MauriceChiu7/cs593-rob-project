@@ -70,7 +70,8 @@ class ur5:
 
         self.robotUrdfPath = "./urdf/real_arm.urdf"
         self.robotStartPos = [0.0,0.0,0.0]
-        self.robotStartOrn = p.getQuaternionFromEuler([1.885,1.786,0.132])
+        # self.robotStartOrn = p.getQuaternionFromEuler([1.885,1.786,0.132])
+        self.robotStartOrn = p.getQuaternionFromEuler([0,0,0])
 
         self.xin = self.robotStartPos[0]
         self.yin = self.robotStartPos[1]

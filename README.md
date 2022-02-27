@@ -17,5 +17,10 @@ UR5: https://github.com/sholtodouglas/ur5pybullet
 A1: https://github.com/unitreerobotics/unitree_pybullet
 
 ### How to run:
+For the UR5 Manipulator:
 Be in this directory: `/cs593-rob-project`
-For the UR5 robot, do: `python3 ur5.py`
+and run: `python3 ur5.py`
+
+For the Unitree A1 Robot:
+Be in this directory: `/cs593-rob-project/unitree_pybullet`
+and run: `python3 a1.py`
