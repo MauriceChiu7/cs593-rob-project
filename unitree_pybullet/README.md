@@ -2,8 +2,4 @@
 ## models:
 
 
-laikago
-
-aliengo
-
 a1
