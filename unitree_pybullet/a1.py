@@ -1,4 +1,5 @@
 from mimetypes import init
+# from ssl import _PasswordType
 import pybullet as p
 import time
 import os
@@ -7,7 +8,7 @@ import pybullet_data
 import numpy as np
 import torch
 
-# class Dog:
+
 def loadA1():
     p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -73,6 +74,88 @@ def simulate():
         p.stepSimulation()
 
 
+"""Get x,y,z coordinates of the hip joints."""
+def getState(quadruped):
+    FR_hip_joint = p.getLinkState(quadruped, 2)[0]
+    FL_hip_joint = p.getLinkState(quadruped, 6)[0]
+    RR_hip_joint = p.getLinkState(quadruped, 10)[0]
+    RL_hip_joint = p.getLinkState(quadruped, 14)[0]
+    # print('These are the FR, FL, RR, RL hip joints respectively: ', FR_hip_joint, FL_hip_joint, RR_hip_joint, RL_hip_joint)
+    return [FR_hip_joint, FL_hip_joint, RR_hip_joint, RL_hip_joint]
+
+
+"""Apply a random action to the all the links/joints of the hip."""
+def applyAction(quadruped, jointIds, action):
+    # Generate states for each action in each plan
+    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
+    # print("Action: \n", plans[g][h])
+    for _ in range(10):
+        p.stepSimulation()
+
+
+"""Calculate the cost of moving to the 'next' state."""
+def getStateCost(state, prevState):
+    z_init = 0.480031    # Z-coord of hip joint at initial state
+    # z_prev = (prevState[0][2] + prevState[1][2] + prevState[3][2] + prevState[4][2])/4 
+    z1 = state[0][2]
+    z2 = state[1][2]
+    z3 = state[2][2]
+    z4 = state[3][2]
+
+    # calculate where the FR and FL hip's x coordinates are
+    currX = (state[0][0] + state[1][0]) * 0.5
+    prevX = (prevState[0][0] + prevState[1][0]) * 0.5
+
+    # Calculating Tilt of Floating Body
+    sum = 0 
+    sum += abs(z1 - z2)
+    sum += abs(z1 - z3)
+    sum += abs(z1 - z4)
+    sum += abs(z2 - z3)
+    sum += abs(z2 - z4)
+    sum += abs(z3 - z4)
+    # get average
+    tilt = sum/6
+    
+    # Calculating how high in air
+    # Just want z-coordinate to stay same--not in air or crouching
+    avgZ = (z1+z2+z3+z4)/4
+    heightDiff = abs(avgZ - z_init)
+    
+    # Calculate if moving forward
+    diffX = prevX - currX
+
+    totalCost = 10*tilt + 10*heightDiff + 20*diffX
+    return totalCost
+
+
+"""Calculates the total cost of each path/plan."""
+def getPathCost(stateSet, s0):
+    cost = 0
+    for x in range(len(stateSet)):
+        if x == 0:
+            cost += getStateCost(stateSet[x], s0)
+        else:
+            cost += getStateCost(stateSet[x], stateSet[x-1])
+    return cost
+
+
+def sampleNormDistr(mu, sigma):
+    action_sequence = torch.normal(mean=mu, std=sigma)
+    return action_sequence
+
+
+def getStateSeq(action_sequence, H, quadruped, jointIds, currentID):
+    state_sequence = []
+    for h in range(H):
+        applyAction(quadruped, jointIds, action_sequence[h])
+        s = getState(quadruped)
+        state_sequence.append(s)
+    # Restore back to original state to run the plan again
+    p.restoreState(currentID)
+    return state_sequence
+
+
 def main():
     urdfFlags, quadruped = loadA1()
     envInfo = getEnvInfo(quadruped)
@@ -94,45 +177,104 @@ def main():
 
     ####### Milestone 2 ######
 
-    # Outer loop
-    # For each env_step
-    # steps = 10
-    # for env_step in steps:
+    # Initial Variables
+    G = 30     # G is the number of paths generated (with the best 1 being picked)
+    H = 60     # Number of states to predict per path (prediction horizon)
+    N = 100     # How many iterations we're running the training for
+    k = int(0.4 * G)    # Choosing the top k paths to create new distribution
+    currentID = p.saveState()
+    mu = torch.tensor([[0.]*12]*H)
+    sigma = torch.tensor([[1.]*12]*H)
+    count = 0
 
-    # Get G samples of normal distribution
-    G = 1000
-    plans = []
-    mu = torch.tensor([0.]*12)
-    sigma = torch.tensor([1.]*11 + [20.])
+    # ________________LINE 0________________
+    for _ in range(N):
+        # ________________LINE 1________________
+        # Sample G initial plans
+        plans = []
+        # Generate all the random actions for each plan
+        for _ in range(G):
+            plans.append(sampleNormDistr(mu, sigma))
 
-    for _ in range(G):
-        sam = torch.normal(mean=mu, std=sigma)
-        plans.append(sam)
+        # print('________________THIS IS PLANS___________________\n', plans)
+        # print('________________________________________________\n')
 
-    # Just using floating base state for now
-    FR_hip_joint = p.getLinkState(quadruped, 2)[0]
-    FL_hip_joint = p.getLinkState(quadruped, 6)[0]
-    RR_hip_joint = p.getLinkState(quadruped, 10)[0]
-    RL_hip_joint = p.getLinkState(quadruped, 14)[0]
-    print('These are the FR, FL, RR, RL hip joints respectively: ', FR_hip_joint, FL_hip_joint, RR_hip_joint, RL_hip_joint)
+        # ________________LINE 2________________
+        # Get initial states of the joints
+        # Just using floating base state for now
+        s0 = getState(quadruped)
+        # print("Initial State \n", s0)
 
-    s0 = [FR_hip_joint, FL_hip_joint, RR_hip_joint, RL_hip_joint]
+        iters = 5
+        jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
 
-    pred_horiz = 10
-    iters = 100
-    states = []
-    # for i in range(iters):
-    #     for h in H:
+        # ________________LINE 3________________
+        for i in range(iters):
+            # ________________LINE 4b________________
+            # get sequence states from sampled sequence of actions
+            # initialize path set and fill it with G paths generated from the actions
+            pathSet = []
+            for g in range(G):
+                state_sequence = getStateSeq(plans[g], H, quadruped, jointIds, currentID)
+                pathSet.append((state_sequence, plans[g]))
+
+            # ________________LINE 5________________
+            # get cost of each path (sequence of states) generated above
+            actionSetCosts = []
+            for path in pathSet:
+                cost = getPathCost(path[0], s0)
+                actionSetCosts.append((path[1],cost))
+
+            # ________________LINE 6________________
+            # Sort the sequence of actions based on their cost
+            sortedList = sorted(actionSetCosts, key = lambda x: x[1])
+            # print("sortedList: \n", sortedList)
             
-    #         configuration = Configuration.from_revolute_values([-2.238, -1.153, -2.174, 0.185, 0.667, 0.])
+            # ________________LINE 7________________
+            # Update normal distribution to fit top k action sequences
 
-    #         frame_WCF = robot.forward_kinematics(configuration)
+            # Take top K paths according to cost
+            topKPath = [np.array(i[0]) for i in sortedList[0:k]]
+            a = np.average(np.array(topKPath), axis=0).tolist()
+            b = np.std(np.array(topKPath), axis=0).tolist()
+            mu = torch.tensor(a)
+            sigma = torch.tensor(b)
+
+            # ________________LINE 8________________
+            # Replace bottom G-K action sequences with samples from
+            bottomActions = []
+            for _ in range(G-k):
+                actions = sampleNormDistr(mu, sigma)
+                path = getStateSeq(actions, H, quadruped, jointIds, currentID)
+                cost = getPathCost(path, s0)
+                bottomActions.append((actions, cost))
+            
+            topActions = sortedList[0:k]
+            actionSet = bottomActions + topActions
+            actionSet = sorted(actionSet, key = lambda x: x[1])
+
+        # ________________LINE 9________________
+        # execute first action from the "best" model in the action sorted action sequences 
+        # execute action
+        bestAction = actionSet[0][0][0]
+        applyAction(quadruped, jointIds, bestAction)
+        bestAction = actionSet[0][0][1]
+        applyAction(quadruped, jointIds, bestAction)
+        bestAction = actionSet[0][0][2]
+        applyAction(quadruped, jointIds, bestAction)
+                
+        # save state after
+        currentID = p.saveState()
+
+
+        print("Iteration: ", count)
+        print("This is the ID: ", currentID)
+        count += 1
+        # exit()
 
 
 
-
-    print("--------")
-    exit()
+        
     # while(1):
     #     with open("mocap.txt","r") as filestream:
     #         for line in filestream:
