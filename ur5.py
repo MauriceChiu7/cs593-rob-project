@@ -39,6 +39,11 @@ def main():
     linkStates = getLinkState(p, handy, END_EFFECTOR_INDEX, 1, verbose=False)
     (jointInfo, JointState) = getJointsInfo(p, handy, verbose=False)
     
+    currState = getCurrJointsState(p, handy)
+    jointsRange = getJointRange(p, handy)
+
+    print(currState)
+    print(jointsRange)
 
     while(1):
         # Looping the simulation

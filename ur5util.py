@@ -1,3 +1,17 @@
+ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
+
+def getCurrJointsState(p, uid):
+    jointsState = []
+    for a in ACTIVE_JOINTS:
+        jointsState.append(p.getJointState(uid, a))
+    return jointsState
+
+def getJointRange(p, uid):
+    jointsRange = []
+    for a in ACTIVE_JOINTS:
+        jointInfo = p.getJointInfo(uid, a)
+        jointsRange.append((jointInfo[8], jointInfo[9]))
+    return jointsRange
 
 # Gets link state
 def getLinkState(p, uid, linkIndex, computeLinkVelocity, verbose=False):
