@@ -209,9 +209,9 @@ def main():
     ####### Milestone 2 ######
 
     # Initial Variables
-    G = 15     # G is the number of paths generated (with the best 1 being picked)
-    H = 10     # Number of states to predict per path (prediction horizon)
-    N = 5     # How many iterations we're running the training for
+    G = 30     # G is the number of paths generated (with the best 1 being picked)
+    H = 20     # Number of states to predict per path (prediction horizon)
+    N = 300     # How many iterations we're running the training for
     k = int(0.4 * G)    # Choosing the top k paths to create new distribution
     currentID = p.saveState()
     mu = torch.tensor([[0.]*12]*H)
