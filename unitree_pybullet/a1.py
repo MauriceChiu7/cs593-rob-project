@@ -9,6 +9,8 @@ import numpy as np
 import torch
 import csv
 
+maxForceId = 0
+
 def loadA1():
     p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -17,7 +19,7 @@ def loadA1():
     p.setTimeStep(1./500)
 
     urdfFlags = p.URDF_USE_SELF_COLLISION
-    quadruped = p.loadURDF("a1/urdf/a1.urdf",[0,0,0.48],[0,0,0,1], flags = urdfFlags,useFixedBase=False)
+    quadruped = p.loadURDF("data/a1/urdf/a1.urdf",[0,0,0.48],[0,0,0,1], flags = urdfFlags,useFixedBase=False)
 
     #enable collision between lower legs
     lower_legs = [2,5,8,11]
@@ -86,8 +88,10 @@ def getState(quadruped):
 
 """Apply a random action to the all the links/joints of the hip."""
 def applyAction(quadruped, jointIds, action):
+    # fs = [50,50,50,50,50,50,50,50,50,50,50,50]
+    fs = [p.readUserDebugParameter(maxForceId)] * 12
     # Generate states for each action in each plan
-    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
+    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action, forces=fs)
     # print("Action: \n", plans[g][h])
     for _ in range(10):
         p.stepSimulation()
@@ -106,8 +110,15 @@ def getStateCost(state, prevState):
     currX = (state[0][0] + state[1][0]) * 0.5
     prevX = (prevState[0][0] + prevState[1][0]) * 0.5
 
+    # calculate where the FR and FL hip's y coordinates are
+    currY = (state[0][1] + state[1][1] + state[2][1] + state[3][1] ) * 0.25
+    straightY = 0
+
+    # Calculate cost of feeting staying on ground
+
+
     # Calculating Tilt of Floating Body
-    sum = 0 
+    sum = 0
     sum += abs(z1 - z2)
     sum += abs(z1 - z3)
     sum += abs(z1 - z4)
@@ -125,7 +136,12 @@ def getStateCost(state, prevState):
     # Calculate if moving forward
     diffX = prevX - currX
 
-    totalCost = 10*tilt + 10*heightDiff + 20*diffX
+    # Calculate if straight
+    diffY = abs(currY) - straightY
+
+    # totalCost = 10*tilt + 10*heightDiff + 20*diffX
+
+    totalCost = 10*tilt + 10*heightDiff + 100*diffX + 30*diffY
     return totalCost
 
 
@@ -154,8 +170,10 @@ def sampleNormDistr(mu, sigma):
     # Joint 11 Max is: 1.301261 and Min is: 0.242691
     # Joint 12 Max is: -0.92895 and Min is: -1.835604
     maxes = [0.23,0.81,-0.98,0.14,0.83,-0.95,0.28,1.32,-0.94,0.13,1.30,-0.93]
+    maxes = [0.5, 1.6, 0., 0.3, 1.6, 0., 0.6, 2.6, 0. ,0.3, 2.6, 0.]
     maxes = torch.tensor(maxes)
     mins = [-0.15, 0.63, -1.75, -0.27, 0.53, -1.74, -0.13, 0.27, -1.84, -0.25, 0.24, -1.84]
+    mins = [-0.3, 0., -3.5, -0.5, 0., -3.5, -0.3, 0., -3.6, -0.5, 0., -3.6]
     mins = torch.tensor(mins)
 
     action_sequence = []
@@ -298,12 +316,11 @@ def main():
         print("Iteration: ", count)
         print("This is the ID: ", currentID)
         count += 1
-        # exit()
 
 
     # Write to final
     filename = "final_actions.csv"
-        
+
     # writing to csv file
     with open(filename, 'w') as csvfile:
         # creating a csv writer object
