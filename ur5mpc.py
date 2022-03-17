@@ -10,9 +10,23 @@
     # Horizon length (H = 5?)
 
 # Cost Function
-    # Start with an easy quadratic one?
+    # CEM
     
-# Cross-Entropy Method? 
+# Figure out CEM
 
 # Questions:
 # What is UR5's dynamical model? Included in the URDF? What are the matrices?
+
+# Task: Make UR5 follow a trajectory. 
+
+# torch.normal(desired mean [n-dimensional vector], stdev, size)
+
+# Cross-Entropy Method (CEM)
+# for env_steps l=1 to n:
+#   sample G initial plans
+# 
+# 
+# 
+# 
+# 
+# 
