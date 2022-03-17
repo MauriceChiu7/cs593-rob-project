@@ -7,7 +7,7 @@ import sys
 import pybullet_data
 import numpy as np
 import torch
-
+import csv
 
 def loadA1():
     p.connect(p.GUI)
@@ -140,9 +140,39 @@ def getPathCost(stateSet, s0):
     return cost
 
 
-def sampleNormDistr(mu, sigma):
-    action_sequence = torch.normal(mean=mu, std=sigma)
+def sampleNormDistr(mu, sigma):    
+    # Joint 1 Max is: 0.22933 and Min is: -0.152919
+    # Joint 2 Max is: 0.805074 and Min is: 0.626537
+    # Joint 3 Max is: -0.982286 and Min is: -1.748481
+    # Joint 4 Max is: 0.139305 and Min is: -0.267296
+    # Joint 5 Max is: 0.82714 and Min is: 0.532887
+    # Joint 6 Max is: -0.954666 and Min is: -1.739073
+    # Joint 7 Max is: 0.277363 and Min is: -0.126649
+    # Joint 8 Max is: 1.324073 and Min is: 0.271603
+    # Joint 9 Max is: -0.942585 and Min is: -1.839862
+    # Joint 10 Max is: 0.133936 and Min is: -0.248888
+    # Joint 11 Max is: 1.301261 and Min is: 0.242691
+    # Joint 12 Max is: -0.92895 and Min is: -1.835604
+    maxes = [0.23,0.81,-0.98,0.14,0.83,-0.95,0.28,1.32,-0.94,0.13,1.30,-0.93]
+    maxes = torch.tensor(maxes)
+    mins = [-0.15, 0.63, -1.75, -0.27, 0.53, -1.74, -0.13, 0.27, -1.84, -0.25, 0.24, -1.84]
+    mins = torch.tensor(mins)
+
+    action_sequence = []
+    for x in range(len(mu)):    
+        action = torch.normal(mean = mu[x], std = sigma[x])
+        maxCmpr = torch.gt(action, maxes)
+        minCmpr = torch.gt(mins, action)
+        for b in range(len(maxCmpr)):
+            if maxCmpr[b]:
+                action[b] = maxes[b]
+            if minCmpr[b]:
+                action[b] = mins[b]
+        action = action.tolist()
+        action_sequence.append(action)
     return action_sequence
+    # action_sequence = torch.normal(mean=mu, std=sigma)
+    # return action_sequence
 
 
 def getStateSeq(action_sequence, H, quadruped, jointIds, currentID):
@@ -160,6 +190,7 @@ def main():
     urdfFlags, quadruped = loadA1()
     envInfo = getEnvInfo(quadruped)
     jointInfo, jointStates = getRobotInfo(quadruped)
+    finalActions = []
 
     #### Milestone 1 ####
     # print("\nEnvironment State Info ---------------------------------------------------------")
@@ -178,13 +209,13 @@ def main():
     ####### Milestone 2 ######
 
     # Initial Variables
-    G = 30     # G is the number of paths generated (with the best 1 being picked)
-    H = 60     # Number of states to predict per path (prediction horizon)
-    N = 100     # How many iterations we're running the training for
+    G = 15     # G is the number of paths generated (with the best 1 being picked)
+    H = 10     # Number of states to predict per path (prediction horizon)
+    N = 5     # How many iterations we're running the training for
     k = int(0.4 * G)    # Choosing the top k paths to create new distribution
     currentID = p.saveState()
     mu = torch.tensor([[0.]*12]*H)
-    sigma = torch.tensor([[1.]*12]*H)
+    sigma = torch.tensor([[0.2]*12]*H)
     count = 0
 
     # ________________LINE 0________________
@@ -258,11 +289,8 @@ def main():
         # execute action
         bestAction = actionSet[0][0][0]
         applyAction(quadruped, jointIds, bestAction)
-        bestAction = actionSet[0][0][1]
-        applyAction(quadruped, jointIds, bestAction)
-        bestAction = actionSet[0][0][2]
-        applyAction(quadruped, jointIds, bestAction)
-                
+        finalActions.append(bestAction)
+
         # save state after
         currentID = p.saveState()
 
@@ -273,28 +301,16 @@ def main():
         # exit()
 
 
-
+    # Write to final
+    filename = "final_actions.csv"
         
-    # while(1):
-    #     with open("mocap.txt","r") as filestream:
-    #         for line in filestream:
-    #             maxForce = p.readUserDebugParameter(maxForceId)
-    #             currentline = line.split(",")
-    #             frame = currentline[0]
-    #             t = currentline[1]
-    #             joints=currentline[2:14]
-    #             for j in range (12):
-    #                 targetPos = float(joints[j])
-    #                 p.setJointMotorControl2(quadruped, jointIds[j], p.POSITION_CONTROL, targetPos, force=maxForce)
+    # writing to csv file
+    with open(filename, 'w') as csvfile:
+        # creating a csv writer object
+        csvwriter = csv.writer(csvfile)
+        # writing the data rows
+        csvwriter.writerows(finalActions)
 
-    #             p.stepSimulation()
-    #             for lower_leg in lower_legs:
-    #                 #print("points for ", quadruped, " link: ", lower_leg)
-    #                 pts = p.getContactPoints(quadruped,-1, lower_leg)
-    #                 #print("num points=",len(pts))
-    #                 #for pt in pts:
-    #                 #    print(pt[9])
-    #             time.sleep(1./500.)
 
 
 
