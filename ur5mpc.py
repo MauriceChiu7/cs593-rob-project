@@ -28,24 +28,43 @@ def extract(index, list):
 #     rnd = torch.normal(mean=mu, std=sigma)
 #     return torch.clamp(rnd, torch.tensor(mins), torch.tensor(maxes))
 
-# returns a sample from norma distribution with mu and sigma that's between jointMinLimit and jointMaxLimit
 def actionSeqSetFromNormalDist(mu, sigma, numOfPlans, horiLen):
     mins, maxes = np.array(jointsRange).T
-
     actionSeqSet = [] # action sequence set that contains g sequences
     for g in range(numOfPlans):
-        actionSeq = [] # action sequence that contains h actions
-        for h in range(horiLen):
-            action = []
-            for j in range(len(ur5.ACTIVE_JOINTS)):
-                sample = torch.normal(mean=mu[h], std=sigma[h])
-                action.append(torch.clamp(sample, torch.tensor(mins[j]), torch.tensor(maxes[j])))
-            
-            actionSeq.append(action)
-        
-        actionSeqSet.append(actionSeq)
-    
-    return actionSeqSet
+        samp = np.random.multivariate_normal(mu.numpy(), sigma.numpy()).reshape(horiLen, len(mins))
+        samp = np.clip(samp, mins, maxes)
+        actionSeqSet.append(torch.tensor(samp.reshape(-1)))
+        # print(samp)
+        # exit(0)
+
+        # actionSeq = []
+        # for mui, sigmai in zip(mu, sigma):
+        #     samp = np.random.multivariate_normal(mui.numpy(), sigmai.numpy())
+        #     actionSeq.append(torch.clamp(torch.tensor(samp), torch.tensor(mins), torch.tensor(maxes)))
+
+        # actionSeq = torch.stack(actionSeq)
+        # actionSeqSet.append(actionSeq)
+    return torch.stack(actionSeqSet)
+
+
+
+# returns a sample from norma distribution with mu and sigma that's between jointMinLimit and jointMaxLimit
+# def actionSeqSetFromNormalDist(mu, sigma, numOfPlans, horiLen):
+#     mins, maxes = np.array(jointsRange).T
+
+#     actionSeqSet = [] # action sequence set that contains g sequences
+#     for g in range(numOfPlans):
+#         actionSeq = [] # action sequence that contains h actions
+#         for h in range(horiLen):
+#             action = []
+#             for j in range(len(ur5.ACTIVE_JOINTS)):
+#                 sample = torch.normal(mean=mu[h], std=sigma[h])
+#                 action.append(torch.clamp(sample, torch.tensor(mins[j]), torch.tensor(maxes[j])))
+#
+#             actionSeq.append(action)
+#         actionSeqSet.append(actionSeq)
+#     return actionSeqSet
 
 # # generates a list of H random actions where H is the horizon length
 # def genActionSeq(horiLen, mu, sigma):
@@ -63,13 +82,16 @@ def applyAction(uid, jointIds, action):
     for _ in range(10):
         p.stepSimulation()
 
+def getState(action, uid, jointIds):
+    applyAction(uid, jointIds, action)
+    eePos = p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0]
+    return eePos
+
 # def getStateSeq(actionSeq, H, uid, jointIds, currentID):
 def getStateSeq(actionSeq, uid, jointIds):
     stateSeq = []
     for action in actionSeq:
-        p.setJointMotorControlArray(uid, jointIds, p.POSITION_CONTROL, action)
-        eePos = p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0]
-        stateSeq.append(eePos)
+        stateSeq.append(getState(action, uid, jointIds))
     return stateSeq
 
 # """
@@ -99,11 +121,31 @@ def getStateSequenceCost(stateSeq, hFutureDest):
         cost += dist(stateSeq[i], hFutureDest[i])
     return cost
 
+def getActionSequenceCost(actionSeq, hFutureDest, uid, jointIds):
+    actionSeq2 = actionSeq.reshape(len(hFutureDest), -1)
+    target_traj_cost = 0
+
+    st = getState(actionSeq2[0], uid, jointIds)
+    htarg = hFutureDest[0]
+    target_traj_cost += dist(st, htarg)
+
+    # for action, htarg in zip(actionSeq2, hFutureDest):
+    #     st = getState(action, uid, jointIds)
+    #     target_traj_cost += dist(st, htarg)
+    
+    # continuity_cost = 0
+    # for action0, action1 in zip(actionSeq2, actionSeq2[1:]):
+    #     continuity_cost += dist(action0, action1)
+
+    # print(f'cont: {continuity_cost}')
+    return target_traj_cost
+
 # Constants: 
 END_EFFECTOR_INDEX = 7 # The end effector link index
 DISCRETIZATION_STEP = 0.2
+N = 100
 G = 20 # Define our constant G (number of samples)
-H = 5 # Define our constant H (the horizon length)
+H = 1 # Define our constant H (the horizon length)
 T = 10 # Define our constant T (times to update mean and standard deviation for the distribution)
 # Define our constant K (numbers of action lists to keep) Needs tuning! Too big, you include bad samples, too small, you get stuck at local minimum.
 K = int(0.4 * G) # Choosing the top K paths to create new distribution
@@ -138,10 +180,11 @@ def main():
     jointsRange = ur5.getJointRange(p, handy)
 
     resolution = 0.1
-    trajX = [(8 + 0.02 * np.cos(theta * 4)) * np.cos(theta) for theta in np.arange(-np.pi, np.pi, resolution)]
-    trajY = [(8 + 0.02 * np.cos(theta * 4)) * np.sin(theta) for theta in np.arange(-np.pi, np.pi, resolution)]
+    trajX = [(5 + 0.0 * np.cos(theta * 4)) * np.cos(theta) for theta in np.arange(-np.pi, np.pi, resolution)]
+    trajY = [(5 + 0.0 * np.cos(theta * 4)) * np.sin(theta) for theta in np.arange(-np.pi, np.pi, resolution)]
     trajZ = [5 for z in np.arange(-np.pi, np.pi, resolution)]
-    traj = list(zip(trajX, trajY, trajZ))
+    traj = np.array(list(zip(trajX, trajY, trajZ))) / 10
+    # traj = np.array([traj[0]])
 
     print(f"trajectory length: {len(traj)}")
 
@@ -152,11 +195,14 @@ def main():
     # currentID = p.saveState()
 
     # Define H initial mu as 0
-    mu = torch.tensor([0.]*H)
+    mu = torch.zeros(H, len(ur5.ACTIVE_JOINTS)).flatten()
+    # mu = torch.tensor([0.] * len(ur5.ACTIVE_JOINTS))
     # mu = torch.tensor([[0.]*8]*H)
     
     # Define H initial standard deviation as the identity matrix
-    sigma = torch.tensor([0.5]*H) # Find out whether this should be torch.eye(8)
+    sigma = np.pi * torch.eye(len(mu))
+    # sigma = sigma.repeat(H, 1, 1)
+    # sigma = torch.tensor([0.5]*H) # Find out whether this should be torch.eye(8)
     # sigma = torch.tensor([[0.2]*8]*H) # Find out whether this should be torch.eye(8)
     # sigma = torch.tensor([[0.]*8]*H) # Find out whether this should be torch.eye(8)
     
@@ -166,7 +212,7 @@ def main():
     finalActions = []
 
     # For env_steps=1 to n:
-    for env_step in range(len(traj)):
+    for env_step in range(N):
         # Before simulating, save state. 
         stateId = p.saveState()
 
@@ -182,7 +228,7 @@ def main():
         # Each plan should have horizon lenghth H. (G is user defined. Could be up to 1000.)
         # If H=5, you sample 5 random actions using gaussian distribution.
         actionSeqSet = actionSeqSetFromNormalDist(mu, sigma, G, H)
-        
+
         # 2. Get initial state - call the system (get EE position)
         # currConfig = ur5.getCurrJointsState(p, handy) // might not be necessary.
         # eeCurrPos = p.getLinkState(handy, END_EFFECTOR_INDEX, 1)[0]
@@ -198,38 +244,62 @@ def main():
             #   actions and the initial state.
             
             # Every plan g in G has an action sequence and the resulting state sequence.
+            '''
             stateSeqSet = [] # stores the G state sequences
-            for g in range(G):
-                stateSeq = getStateSeq(actionSeqSet[g], handy, ur5.ACTIVE_JOINTS) # State sequence stores a list of ee positions
-                # stateSeqSet.append(stateSeq)
-                stateSeqSet.append((stateSeq, actionSeqSet[g]))
+            # for g in range(G):
+            for actionSeq in actionSeqSet:
+                stateSeq = getStateSeq(actionSeq, handy, ur5.ACTIVE_JOINTS) # State sequence stores a list of ee positions
+                stateSeqSet.append((stateSeq, actionSeq))
 
             # 5. Calculate the cost at each state and sum them for each G.
             planCosts = []
-            for ss in stateSeqSet:
-                cost = getStateSequenceCost(ss[0], hFutureDest) # ss[0] is the state sequence calculated from the action sequence
-                planCosts.append((ss[1], cost)) # ss[1] is the action sequence
-            
+            for stateSeq, actSeq in stateSeqSet:
+                cost = getStateSequenceCost(stateSeq, hFutureDest) # ss[0] is the state sequence calculated from the action sequence
+                planCosts.append((actSeq, cost)) # ss[1] is the action sequence
+            '''
+            planCosts = []
+            for actionSeq in actionSeqSet:
+                p.restoreState(stateId)
+                cost = getActionSequenceCost(actionSeq, hFutureDest, handy, ur5.ACTIVE_JOINTS)
+                # print(cost)
+                planCosts.append((actionSeq, cost))
+            # exit(0)
+
             # 6. Sort your randomly sampled actions based on the sum of cost of each g in G.
             sortedActionSeqSet = sorted(planCosts, key = lambda x: x[1])
+
+            # print([b for a, b in sortedActionSeqSet][:K])
+            # exit(0)
 
             # 7. Pick your top K samples (elite samples). Calculate mean and standard deviation of the action column vectors at each step from elite samples.
             eliteActionSeqSet = []
             for es in range(K):
                 eliteActionSeqSet.append(sortedActionSeqSet[es][0])
+            eliteActionSeqSet = torch.stack(eliteActionSeqSet)
+
+            # for actionSeq in eliteActionSeqSet:
+            #     p.restoreState(stateId)
+            #     cost = getActionSequenceCost(actionSeq, hFutureDest, handy, ur5.ACTIVE_JOINTS)
+            #     p.restoreState(stateId)
+            #     print(cost)
+
+            mu = torch.mean(eliteActionSeqSet, dim=0)
+            sigma = torch.cov(eliteActionSeqSet.T)
+            sigma += .02 * torch.eye(len(mu))  # add a small amount of noise to the diagonal to replan to next target
             
-            means = []
-            stdevs = []
-            for h in range(H):
-                flattened = list(chain.from_iterable(extract(h, eliteActionSeqSet)))
-                means.append(np.average(flattened, axis=0))
-                stdevs.append(np.std(flattened, axis=0))
+            # means = []
+            # stdevs = []
+            # for h in range(H):
+            #     flattened = list(chain.from_iterable(extract(h, eliteActionSeqSet)))
+            #     means.append(np.average(flattened, axis=0))
+            #     stdevs.append(np.std(flattened, axis=0))
 
-            mu = torch.tensor(means)
-            sigma = torch.tensor(stdevs)
+            # mu = torch.tensor(means)
+            # sigma = torch.tensor(stdevs)
 
-            print(f"mu: {mu}")
-            print(f"sigma: {sigma}")
+            # print(f"mu: {mu}")
+            # print(f"sigma: {sigma}")
+            # exit(0)
 
             # 8. Replace bottom G-K action sequenses with the newly generated actions using the mean and standard deviation calculated above.
             
@@ -242,23 +312,12 @@ def main():
             # print(replacementSet)
             # print("=== replacementSet ===\n")
 
-            actionSeqSet = eliteActionSeqSet + replacementSet
+            actionSeqSet = torch.cat((eliteActionSeqSet, replacementSet))
             
-            
-            
-            # for _ in range(G-K):
-                # actions = sampleNormDistr(mu, sigma)
-                # path = getStateSeq(actions, H, handy, ur5.ACTIVE_JOINTS)
-                # cost = getStateSequenceCost(path, s0)
-                # bottomActions.append((actions, cost))
-            
-            # topActions = sortedActionSeqSet[0:K]
-            # actionSet = bottomActions + topActions
-            # actionSet = sorted(actionSet, key = lambda x: x[1])
-
         # 9. Execute the first action from the best action sequence.
-        bestAction = actionSeqSet[0][0]
+        bestAction = actionSeqSet[0][:len(ur5.ACTIVE_JOINTS)]
         print("=== bestAction ===")
+        print(f'best cost: {getActionSequenceCost(actionSeqSet[0], hFutureDest, handy, ur5.ACTIVE_JOINTS)}')
         print(bestAction)
 
         p.restoreState(stateId)
