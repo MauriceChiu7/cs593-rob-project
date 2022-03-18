@@ -5,34 +5,22 @@ import torch
 import csv
 import os
 import math
+from itertools import chain
 
 import ur5util as ur5
 # from ur5pybullet import ur5
 
-END_EFFECTOR_INDEX = 7 # The end effector link index
-DISCRETIZATION_STEP = 0.2
-
 def diff(v1, v2):
-    """
-    Computes the difference v1 - v2, assuming v1 and v2 are both vectors
-    v2 = [2, 5, 7]
-    v1 = [1, 2, 3]
-    list(zip(v1, v2)) -> [(1, 2), (2, 5), (3, 7)]
-    print([x for x in range(4)]) -> [0, 1, 2, 3]
-    """
     return [x1 - x2 for x1, x2 in zip(v1, v2)]
 
 def magnitude(v):
-    """
-    Computes the magnitude of the vector v.
-    """
     return math.sqrt(sum([x*x for x in v]))
 
 def dist(p1, p2):
-    """
-    Computes the Euclidean distance (L2 norm) between two points p1 and p2
-    """
     return magnitude(diff(p1, p2))
+
+def extract(index, list):
+    return [item[index] for item in list]
 
 # # returns a list of sample from normal distribution with mu and sigma that's between jointMinLimit and jointMaxLimit with length matching mu and sigma.
 # def sampleNormDistr(mu, sigma):
@@ -42,7 +30,8 @@ def dist(p1, p2):
 
 # returns a sample from norma distribution with mu and sigma that's between jointMinLimit and jointMaxLimit
 def actionSeqSetFromNormalDist(mu, sigma, numOfPlans, horiLen):
-    mins, maxes = np.array([(-3.14159265359, 3.14159265359), (-3.14159265359, 3.14159265359), (-3.14159265359, 3.14159265359), (-3.14159265359, 3.14159265359), (-3.14159265359, 3.14159265359), (-3.14159265359, 3.14159265359), (-0.0, 0.04), (-0.04, 0.0)]).T
+    mins, maxes = np.array(jointsRange).T
+
     actionSeqSet = [] # action sequence set that contains g sequences
     for g in range(numOfPlans):
         actionSeq = [] # action sequence that contains h actions
@@ -51,11 +40,11 @@ def actionSeqSetFromNormalDist(mu, sigma, numOfPlans, horiLen):
             for j in range(len(ur5.ACTIVE_JOINTS)):
                 sample = torch.normal(mean=mu[h], std=sigma[h])
                 action.append(torch.clamp(sample, torch.tensor(mins[j]), torch.tensor(maxes[j])))
+            
             actionSeq.append(action)
+        
         actionSeqSet.append(actionSeq)
-
-    # rnd = torch.normal(mean=mu, std=sigma)
-    # return torch.clamp(rnd, torch.tensor(mins), torch.tensor(maxes))
+    
     return actionSeqSet
 
 # # generates a list of H random actions where H is the horizon length
@@ -71,7 +60,6 @@ def actionSeqSetFromNormalDist(mu, sigma, numOfPlans, horiLen):
 def applyAction(uid, jointIds, action):
     # Generate states for each action in each plan
     p.setJointMotorControlArray(uid, jointIds, p.POSITION_CONTROL, action)
-    # print("Action: \n", plans[g][h])
     for _ in range(10):
         p.stepSimulation()
 
@@ -110,17 +98,18 @@ def getStateSequenceCost(stateSeq, hFutureDest):
     for i in range(len(stateSeq)):
         cost += dist(stateSeq[i], hFutureDest[i])
     return cost
-    # cost = 0
-    # for x in range(len(stateSet)):
-    #     if x == 0:
-    #         cost += getStateCost(stateSet[x], s0)
-    #     else:
-    #         cost += getStateCost(stateSet[x], stateSet[x-1])
-    # return cost
 
-# torch.normal(desired mean [n-dimensional vector], stdev, size)
+# Constants: 
+END_EFFECTOR_INDEX = 7 # The end effector link index
+DISCRETIZATION_STEP = 0.2
+G = 20 # Define our constant G (number of samples)
+H = 5 # Define our constant H (the horizon length)
+T = 10 # Define our constant T (times to update mean and standard deviation for the distribution)
+# Define our constant K (numbers of action lists to keep) Needs tuning! Too big, you include bad samples, too small, you get stuck at local minimum.
+K = int(0.4 * G) # Choosing the top K paths to create new distribution
 
 def main():
+    print(f"G = {G}, H = {H}, T = {T}, K = {K}")
     p.connect(p.GUI)
 
     ## Loads a plane into the environment
@@ -148,20 +137,17 @@ def main():
     global jointsRange
     jointsRange = ur5.getJointRange(p, handy)
 
-    trajX = [(0.19 + 0.02 * np.cos(theta * 4)) * np.cos(theta) for theta in np.arange(-np.pi, np.pi, 0.001)]
-    trajY = [(0.19 + 0.02 * np.cos(theta * 4)) * np.sin(theta) for theta in np.arange(-np.pi, np.pi, 0.001)]
-    trajZ = [2 for z in np.arange(-np.pi, np.pi, 0.001)]
+    resolution = 0.1
+    trajX = [(8 + 0.02 * np.cos(theta * 4)) * np.cos(theta) for theta in np.arange(-np.pi, np.pi, resolution)]
+    trajY = [(8 + 0.02 * np.cos(theta * 4)) * np.sin(theta) for theta in np.arange(-np.pi, np.pi, resolution)]
+    trajZ = [5 for z in np.arange(-np.pi, np.pi, resolution)]
     traj = list(zip(trajX, trajY, trajZ))
+
+    print(f"trajectory length: {len(traj)}")
 
     ####### Milestone 2 ######
 
-    N = len(traj)
-    G = 30 # Define our constant G (number of samples)
-    H = 5 # Define our constant H (the horizon length)
-    T = 5 # Define our constant T (times to update mean and standard deviation for the distribution)
-
-    # Define our constant K (numbers of action lists to keep) Needs tuning! Too big, you include bad samples, too small, you get stuck at local minimum.
-    K = int(0.4 * G) # Choosing the top K paths to create new distribution
+    # N = len(traj)
 
     # currentID = p.saveState()
 
@@ -170,7 +156,7 @@ def main():
     # mu = torch.tensor([[0.]*8]*H)
     
     # Define H initial standard deviation as the identity matrix
-    sigma = torch.tensor([0.]*H) # Find out whether this should be torch.eye(8)
+    sigma = torch.tensor([0.5]*H) # Find out whether this should be torch.eye(8)
     # sigma = torch.tensor([[0.2]*8]*H) # Find out whether this should be torch.eye(8)
     # sigma = torch.tensor([[0.]*8]*H) # Find out whether this should be torch.eye(8)
     
@@ -191,7 +177,6 @@ def main():
                 hFutureDest.append(traj[(env_step + h)%len(traj)])
             else:
                 hFutureDest.append(traj[env_step + h])
-        # print(hFutureDest)
 
         # 1. Sample G initial plans from some gaussian distribution with some zero mean and some stdev.
         # Each plan should have horizon lenghth H. (G is user defined. Could be up to 1000.)
@@ -228,20 +213,39 @@ def main():
             # 6. Sort your randomly sampled actions based on the sum of cost of each g in G.
             sortedActionSeqSet = sorted(planCosts, key = lambda x: x[1])
 
-            # 7. Pick your top K samples (elite samples). Calculate mean and standard deviation of the action column vectors at 
-            #   each step from elite samples.
-            topKPath = [np.array(i[0]) for i in sortedActionSeqSet[0:K]]
-            a = np.average(np.array(topKPath), axis=0).tolist()
-            b = np.std(np.array(topKPath), axis=0).tolist()
-            mu = torch.tensor(a)
-            sigma = torch.tensor(b)
+            # 7. Pick your top K samples (elite samples). Calculate mean and standard deviation of the action column vectors at each step from elite samples.
+            eliteActionSeqSet = []
+            for es in range(K):
+                eliteActionSeqSet.append(sortedActionSeqSet[es][0])
+            
+            means = []
+            stdevs = []
+            for h in range(H):
+                flattened = list(chain.from_iterable(extract(h, eliteActionSeqSet)))
+                means.append(np.average(flattened, axis=0))
+                stdevs.append(np.std(flattened, axis=0))
+
+            mu = torch.tensor(means)
+            sigma = torch.tensor(stdevs)
+
+            print(f"mu: {mu}")
+            print(f"sigma: {sigma}")
 
             # 8. Replace bottom G-K action sequenses with the newly generated actions using the mean and standard deviation calculated above.
-            # bottomActions = []
-            actionSeqSet = actionSeqSet[:len(actionSeqSet)-K]
+            
+            # actionSeqSet = actionSeqSet[:len(actionSeqSet)-K]
             # res = test_list[: len(test_list) - K]
-            replacement = actionSeqSetFromNormalDist(mu, sigma, G-K, H)
-            actionSeqSet.extend(replacement)
+            
+            replacementSet = actionSeqSetFromNormalDist(mu, sigma, G-K, H)
+
+            # print("=== replacementSet ===")
+            # print(replacementSet)
+            # print("=== replacementSet ===\n")
+
+            actionSeqSet = eliteActionSeqSet + replacementSet
+            
+            
+            
             # for _ in range(G-K):
                 # actions = sampleNormDistr(mu, sigma)
                 # path = getStateSeq(actions, H, handy, ur5.ACTIVE_JOINTS)
@@ -253,8 +257,10 @@ def main():
             # actionSet = sorted(actionSet, key = lambda x: x[1])
 
         # 9. Execute the first action from the best action sequence.
-        bestAction = actionSeqSet[0][0][0]
-        
+        bestAction = actionSeqSet[0][0]
+        print("=== bestAction ===")
+        print(bestAction)
+
         p.restoreState(stateId)
         applyAction(handy, ur5.ACTIVE_JOINTS, bestAction)
         finalActions.append(bestAction)
@@ -262,11 +268,11 @@ def main():
         # currentID = p.saveState()
 
         print("Iteration: ", count)
-        print("This is the ID: ", stateId)
+        print()
         count += 1
 
     # Write to final
-    filename = "final_actions.csv"
+    filename = "../ur5_final_actions.csv"
     
     # writing to csv file
     with open(filename, 'w') as csvfile:
