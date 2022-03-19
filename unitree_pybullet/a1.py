@@ -8,8 +8,7 @@ import pybullet_data
 import numpy as np
 import torch
 import csv
-
-maxForceId = 0
+import math
 
 def loadA1():
     p.connect(p.GUI)
@@ -42,6 +41,9 @@ def loadA1():
         jointType = info[2]
         if (jointType==p.JOINT_PRISMATIC or jointType==p.JOINT_REVOLUTE):
             jointIds.append(j)
+
+    for _ in range(50):
+        p.stepSimulation()
 
     return urdfFlags, quadruped
 
@@ -88,10 +90,8 @@ def getState(quadruped):
 
 """Apply a random action to the all the links/joints of the hip."""
 def applyAction(quadruped, jointIds, action):
-    # fs = [50,50,50,50,50,50,50,50,50,50,50,50]
-    fs = [p.readUserDebugParameter(maxForceId)] * 12
     # Generate states for each action in each plan
-    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action, forces=fs)
+    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
     # print("Action: \n", plans[g][h])
     for _ in range(10):
         p.stepSimulation()
@@ -111,14 +111,13 @@ def getStateCost(state, prevState):
     prevX = (prevState[0][0] + prevState[1][0]) * 0.5
 
     # calculate where the FR and FL hip's y coordinates are
-    currY = (state[0][1] + state[1][1] + state[2][1] + state[3][1] ) * 0.25
+    currY = (abs(state[0][1] + state[1][1]) + abs(state[2][1] + state[3][1])) * 0.5
     straightY = 0
 
-    # Calculate cost of feeting staying on ground
-
+    # calc
 
     # Calculating Tilt of Floating Body
-    sum = 0
+    sum = 0 
     sum += abs(z1 - z2)
     sum += abs(z1 - z3)
     sum += abs(z1 - z4)
@@ -137,11 +136,9 @@ def getStateCost(state, prevState):
     diffX = prevX - currX
 
     # Calculate if straight
-    diffY = abs(currY) - straightY
+    diffY = currY
 
-    # totalCost = 10*tilt + 10*heightDiff + 20*diffX
-
-    totalCost = 10*tilt + 10*heightDiff + 100*diffX + 30*diffY
+    totalCost = 30*tilt + 10*heightDiff + 40*diffX + 30*diffY
     return totalCost
 
 
@@ -170,10 +167,12 @@ def sampleNormDistr(mu, sigma):
     # Joint 11 Max is: 1.301261 and Min is: 0.242691
     # Joint 12 Max is: -0.92895 and Min is: -1.835604
     maxes = [0.23,0.81,-0.98,0.14,0.83,-0.95,0.28,1.32,-0.94,0.13,1.30,-0.93]
-    maxes = [0.5, 1.6, 0., 0.3, 1.6, 0., 0.6, 2.6, 0. ,0.3, 2.6, 0.]
+    maxes = [1, 3.2, 0.5, 0.6, 3.2, 0.5, 1.2, 5.2, 0.5 ,0.6, 5.2, 0.5]
+    maxes = [1, 3.2, 0.5, 0.6, 3.2, 0.5]
     maxes = torch.tensor(maxes)
     mins = [-0.15, 0.63, -1.75, -0.27, 0.53, -1.74, -0.13, 0.27, -1.84, -0.25, 0.24, -1.84]
-    mins = [-0.3, 0., -3.5, -0.5, 0., -3.5, -0.3, 0., -3.6, -0.5, 0., -3.6]
+    mins = [-0.6, -0.5, -7.0, -1.0, -0.5, -7.0, -0.6, -0.5, -7.2, -1.0, -0.5, -7.2]
+    mins = [-0.6, -0.5, -7.0, -1.0, -0.5, -7.0]
     mins = torch.tensor(mins)
 
     action_sequence = []
@@ -186,7 +185,10 @@ def sampleNormDistr(mu, sigma):
                 action[b] = maxes[b]
             if minCmpr[b]:
                 action[b] = mins[b]
-        action = action.tolist()
+        action = action.tolist()        
+        front_right = action[:3]
+        front_left = action[3:]
+        action = action + front_left + front_right
         action_sequence.append(action)
     return action_sequence
     # action_sequence = torch.normal(mean=mu, std=sigma)
@@ -227,13 +229,13 @@ def main():
     ####### Milestone 2 ######
 
     # Initial Variables
-    G = 30     # G is the number of paths generated (with the best 1 being picked)
-    H = 20     # Number of states to predict per path (prediction horizon)
+    G = 1000     # G is the number of paths generated (with the best 1 being picked)
+    H = 10     # Number of states to predict per path (prediction horizon)
     N = 300     # How many iterations we're running the training for
     k = int(0.4 * G)    # Choosing the top k paths to create new distribution
     currentID = p.saveState()
-    mu = torch.tensor([[0.]*12]*H)
-    sigma = torch.tensor([[0.2]*12]*H)
+    mu = torch.tensor([[0.]*6]*H)
+    sigma = torch.tensor([[0.2]*6]*H)
     count = 0
 
     # ________________LINE 0________________
@@ -284,6 +286,11 @@ def main():
 
             # Take top K paths according to cost
             topKPath = [np.array(i[0]) for i in sortedList[0:k]]
+            top = []
+            for list in topKPath:
+                list = [i[:6] for i in list]
+                top.append(list)
+            topKPath = top
             a = np.average(np.array(topKPath), axis=0).tolist()
             b = np.std(np.array(topKPath), axis=0).tolist()
             mu = torch.tensor(a)
@@ -293,6 +300,7 @@ def main():
             # Replace bottom G-K action sequences with samples from
             bottomActions = []
             for _ in range(G-k):
+                # print("THIS IS THE LENGTH OF MU:", len(mu[0]))
                 actions = sampleNormDistr(mu, sigma)
                 path = getStateSeq(actions, H, quadruped, jointIds, currentID)
                 cost = getPathCost(path, s0)
@@ -316,11 +324,14 @@ def main():
         print("Iteration: ", count)
         print("This is the ID: ", currentID)
         count += 1
+        state = getState(quadruped)
+        print("x is: ", state[0][0])
+        # exit()
 
 
     # Write to final
     filename = "final_actions.csv"
-
+        
     # writing to csv file
     with open(filename, 'w') as csvfile:
         # creating a csv writer object
