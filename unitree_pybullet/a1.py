@@ -1,5 +1,4 @@
 from mimetypes import init
-# from ssl import _PasswordType
 import pybullet as p
 import time
 import os
@@ -8,6 +7,7 @@ import pybullet_data
 import numpy as np
 import torch
 import csv
+import math
 
 maxForceId = 0
 
@@ -42,6 +42,9 @@ def loadA1():
         jointType = info[2]
         if (jointType==p.JOINT_PRISMATIC or jointType==p.JOINT_REVOLUTE):
             jointIds.append(j)
+
+    for _ in range(50):
+        p.stepSimulation()
 
     return urdfFlags, quadruped
 
@@ -82,16 +85,26 @@ def getState(quadruped):
     FL_hip_joint = p.getLinkState(quadruped, 6)[0]
     RR_hip_joint = p.getLinkState(quadruped, 10)[0]
     RL_hip_joint = p.getLinkState(quadruped, 14)[0]
+
+    # Foot states
+    # FR_foot = p.getLinkState(quadruped, 5)[0]
+    # FL_foot = p.getLinkState(quadruped, 9)[0]
+    # RR_foot = p.getLinkState(quadruped, 13)[0]
+    # RL_foot = p.getLinkState(quadruped, 17)[0]
+    # return [FR_hip_joint, FL_hip_joint, RR_hip_joint, RL_hip_joint, FR_foot, FL_foot, RR_foot, RL_foot]
+
     # print('These are the FR, FL, RR, RL hip joints respectively: ', FR_hip_joint, FL_hip_joint, RR_hip_joint, RL_hip_joint)
     return [FR_hip_joint, FL_hip_joint, RR_hip_joint, RL_hip_joint]
 
 
 """Apply a random action to the all the links/joints of the hip."""
 def applyAction(quadruped, jointIds, action):
-    # fs = [50,50,50,50,50,50,50,50,50,50,50,50]
-    fs = [p.readUserDebugParameter(maxForceId)] * 12
+    # Makes the action read from the toggle bar for forces
+    # fs = [p.readUserDebugParameter(maxForceId)] * 12
+    # p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action, forces=fs)
+
     # Generate states for each action in each plan
-    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action, forces=fs)
+    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
     # print("Action: \n", plans[g][h])
     for _ in range(10):
         p.stepSimulation()
@@ -106,42 +119,54 @@ def getStateCost(state, prevState):
     z3 = state[2][2]
     z4 = state[3][2]
 
-    # calculate where the FR and FL hip's x coordinates are
-    currX = (state[0][0] + state[1][0]) * 0.5
-    prevX = (prevState[0][0] + prevState[1][0]) * 0.5
+    ##### Calculating Tilt of Floating Body
+    sums = 0
+    sums += abs(z1 - z2)
+    sums += abs(z1 - z3)
+    sums += abs(z1 - z4)
+    sums += abs(z2 - z3)
+    sums += abs(z2 - z4)
+    sums += abs(z3 - z4)
+    body_tilt = sums/6   # get average
+    #####
 
-    # calculate where the FR and FL hip's y coordinates are
-    currY = (state[0][1] + state[1][1] + state[2][1] + state[3][1] ) * 0.25
-    straightY = 0
-
-    # Calculate cost of feeting staying on ground
-
-
-    # Calculating Tilt of Floating Body
-    sum = 0
-    sum += abs(z1 - z2)
-    sum += abs(z1 - z3)
-    sum += abs(z1 - z4)
-    sum += abs(z2 - z3)
-    sum += abs(z2 - z4)
-    sum += abs(z3 - z4)
-    # get average
-    tilt = sum/6
-    
     # Calculating how high in air
     # Just want z-coordinate to stay same--not in air or crouching
     avgZ = (z1+z2+z3+z4)/4
     heightDiff = abs(avgZ - z_init)
-    
-    # Calculate if moving forward
-    diffX = prevX - currX
 
-    # Calculate if straight
-    diffY = abs(currY) - straightY
+    ##### Calculate FR and FL hip's x,y coordinates
+    # calculate where the FR and FL hip's x coordinates are
+    currX = (state[0][0] + state[1][0]) * 0.5
+    prevX = (prevState[0][0] + prevState[1][0]) * 0.5
+    diffX = prevX - currX   # Calculate if moving forward
 
-    # totalCost = 10*tilt + 10*heightDiff + 20*diffX
+    # calculate where the FR and FL hip's y coordinates are
+    currY = (abs(state[0][1] + state[1][1]) + abs(state[2][1] + state[3][1])) * 0.5
+    straightY = 0
+    diffY = currY    # Calculate if straight
+    #####
 
-    totalCost = 10*tilt + 10*heightDiff + 100*diffX + 30*diffY
+    ##### Calculate cost of feeting staying on ground
+    # fr_footz = state[4][2]
+    # fl_footz = state[5][2]
+    # rr_footz = state[6][2]
+    # rl_footz = state[7][2]
+
+    # total = 0
+    # total += abs(fr_footz - fl_footz)
+    # total += abs(fr_footz - rr_footz)
+    # total += abs(fr_footz - rl_footz)
+    # total += abs(fl_footz - rr_footz)
+    # total += abs(fl_footz - rl_footz)
+    # total += abs(rl_footz - rr_footz)
+    # foot_diff = total/6
+    #####
+
+    # totalCost = 10*body_tilt + 10*heightDiff + 20*diffX
+    # totalCost = 100*body_tilt + 100*heightDiff + 100*diffX + 30*diffY + foot_diff*100
+    # totalCost = 100*body_tilt + 1000*heightDiff + 100*diffX + 100*diffY + foot_diff*100
+    totalCost = 30*body_tilt + 10*heightDiff + 40*diffX + 30*diffY
     return totalCost
 
 
@@ -156,28 +181,21 @@ def getPathCost(stateSet, s0):
     return cost
 
 
-def sampleNormDistr(mu, sigma):    
-    # Joint 1 Max is: 0.22933 and Min is: -0.152919
-    # Joint 2 Max is: 0.805074 and Min is: 0.626537
-    # Joint 3 Max is: -0.982286 and Min is: -1.748481
-    # Joint 4 Max is: 0.139305 and Min is: -0.267296
-    # Joint 5 Max is: 0.82714 and Min is: 0.532887
-    # Joint 6 Max is: -0.954666 and Min is: -1.739073
-    # Joint 7 Max is: 0.277363 and Min is: -0.126649
-    # Joint 8 Max is: 1.324073 and Min is: 0.271603
-    # Joint 9 Max is: -0.942585 and Min is: -1.839862
-    # Joint 10 Max is: 0.133936 and Min is: -0.248888
-    # Joint 11 Max is: 1.301261 and Min is: 0.242691
-    # Joint 12 Max is: -0.92895 and Min is: -1.835604
+def sampleNormDistr(quadruped, mu, sigma):
     maxes = [0.23,0.81,-0.98,0.14,0.83,-0.95,0.28,1.32,-0.94,0.13,1.30,-0.93]
-    maxes = [0.5, 1.6, 0., 0.3, 1.6, 0., 0.6, 2.6, 0. ,0.3, 2.6, 0.]
+    maxes = [1, 3.2, 0.5, 0.6, 3.2, 0.5, 1.2, 5.2, 0.5 ,0.6, 5.2, 0.5]
+    maxes = [1, 3.2, 0.5, 0.6, 3.2, 0.5]
     maxes = torch.tensor(maxes)
     mins = [-0.15, 0.63, -1.75, -0.27, 0.53, -1.74, -0.13, 0.27, -1.84, -0.25, 0.24, -1.84]
-    mins = [-0.3, 0., -3.5, -0.5, 0., -3.5, -0.3, 0., -3.6, -0.5, 0., -3.6]
+    mins = [-0.6, -0.5, -7.0, -1.0, -0.5, -7.0, -0.6, -0.5, -7.2, -1.0, -0.5, -7.2]
+    mins = [-0.6, -0.5, -7.0, -1.0, -0.5, -7.0]
     mins = torch.tensor(mins)
 
+    # Need to calculate inverseKinematics
+    footIDs = [5, 9, 13, 17]
+
     action_sequence = []
-    for x in range(len(mu)):    
+    for x in range(len(mu)):
         action = torch.normal(mean = mu[x], std = sigma[x])
         maxCmpr = torch.gt(action, maxes)
         minCmpr = torch.gt(mins, action)
@@ -187,7 +205,24 @@ def sampleNormDistr(mu, sigma):
             if minCmpr[b]:
                 action[b] = mins[b]
         action = action.tolist()
-        action_sequence.append(action)
+
+        # This is needed if you have mu vector of size 6
+        front_right = action[:3]
+        front_left = action[3:]
+        action = action + front_left + front_right
+
+
+        # Calc inverse kinematics and divide into each foot position
+        targetPositions = []
+        targetPositions.append((action[0:3]))
+        targetPositions.append((action[3:6]))
+        targetPositions.append((action[6:9]))
+        targetPositions.append((action[9:12]))
+        # print(targetPositions)
+
+        f = p.calculateInverseKinematics2(quadruped, footIDs, targetPositions)
+        action_sequence.append(f)
+
     return action_sequence
     # action_sequence = torch.normal(mean=mu, std=sigma)
     # return action_sequence
@@ -210,30 +245,18 @@ def main():
     jointInfo, jointStates = getRobotInfo(quadruped)
     finalActions = []
 
-    #### Milestone 1 ####
-    # print("\nEnvironment State Info ---------------------------------------------------------")
-    # print(envInfo)
-
-    # print("\nRobot Info ---------------------------------------------------------------")
-    # print("\nJoint Info ----------------------------------------------------")
-    # for id in jointInfo:
-    #     print("Joint", id, ":", jointInfo[id])
-
-    # print("\nJoint State ----------------------------------------------------")
-    # for id in jointStates:
-    #     print("Joint", id, ":", jointStates[id])
-    ########
-
     ####### Milestone 2 ######
 
     # Initial Variables
-    G = 30     # G is the number of paths generated (with the best 1 being picked)
-    H = 20     # Number of states to predict per path (prediction horizon)
-    N = 300     # How many iterations we're running the training for
-    k = int(0.4 * G)    # Choosing the top k paths to create new distribution
+    G = 30                 # G is the number of paths generated (with the best 1 being picked)
+    H = 20                  # Number of states to predict per path (prediction horizon)
+    N = 5                 # How many iterations we're running the training for
+    k = int(0.4 * G)        # Choosing the top k paths to create new distribution
     currentID = p.saveState()
-    mu = torch.tensor([[0.]*12]*H)
-    sigma = torch.tensor([[0.2]*12]*H)
+    # mu = torch.tensor([[0.]*12]*H)
+    # sigma = torch.tensor([[0.2]*12]*H)
+    mu = torch.tensor([[0.]*6]*H)
+    sigma = torch.tensor([[0.2]*6]*H)
     count = 0
 
     # ________________LINE 0________________
@@ -243,16 +266,12 @@ def main():
         plans = []
         # Generate all the random actions for each plan
         for _ in range(G):
-            plans.append(sampleNormDistr(mu, sigma))
-
-        # print('________________THIS IS PLANS___________________\n', plans)
-        # print('________________________________________________\n')
+            plans.append(sampleNormDistr(quadruped, mu, sigma))
 
         # ________________LINE 2________________
         # Get initial states of the joints
         # Just using floating base state for now
         s0 = getState(quadruped)
-        # print("Initial State \n", s0)
 
         iters = 5
         jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
@@ -284,6 +303,14 @@ def main():
 
             # Take top K paths according to cost
             topKPath = [np.array(i[0]) for i in sortedList[0:k]]
+
+            # Need if you make size of mu 6
+            # top = []
+            # for li in topKPath:
+            #     li = [i[:6] for i in li]
+            #     top.append(li)
+            # topKPath = top
+
             a = np.average(np.array(topKPath), axis=0).tolist()
             b = np.std(np.array(topKPath), axis=0).tolist()
             mu = torch.tensor(a)
@@ -293,7 +320,7 @@ def main():
             # Replace bottom G-K action sequences with samples from
             bottomActions = []
             for _ in range(G-k):
-                actions = sampleNormDistr(mu, sigma)
+                actions = sampleNormDistr(quadruped, mu, sigma)
                 path = getStateSeq(actions, H, quadruped, jointIds, currentID)
                 cost = getPathCost(path, s0)
                 bottomActions.append((actions, cost))
@@ -328,35 +355,11 @@ def main():
         # writing the data rows
         csvwriter.writerows(finalActions)
 
-
-
-
-
-
-    # Joint 0 : (0, b'floating_base', 4, -1, -1, 0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, b'trunk', (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0), -1)
-    # Joint 1 : (1, b'imu_joint', 4, -1, -1, 0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, b'imu_link', (0.0, 0.0, 0.0), (-0.012731, -0.002186, -0.000515), (0.0, 0.0, 0.0, 1.0), 0)
-    # Joint 2 : (2, b'FR_hip_joint', 0, 7, 6, 1, 0.0, 0.0, -0.802851455917, 0.802851455917, 20.0, 52.4, b'FR_hip', (1.0, 0.0, 0.0), (0.170269, -0.049186, -0.000515), (0.0, 0.0, 0.0, 1.0), 0)
-    # Joint 3 : (3, b'FR_thigh_joint', 0, 8, 7, 1, 0.0, 0.0, -1.0471975512, 4.18879020479, 55.0, 28.6, b'FR_thigh', (0.0, 1.0, 0.0), (0.003311, -0.084415, -3.1e-05), (0.0, 0.0, 0.0, 1.0), 2)
-    # Joint 4 : (4, b'FR_calf_joint', 0, 9, 8, 1, 0.0, 0.0, -2.69653369433, -0.916297857297, 55.0, 28.6, b'FR_calf', (0.0, 1.0, 0.0), (0.003237, -0.022327, -0.17267400000000002), (0.0, 0.0, 0.0, 1.0), 3)
-    # Joint 5 : (5, b'FR_foot_fixed', 4, -1, -1, 0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, b'FR_foot', (0.0, 0.0, 0.0), (-0.006435, 0.0, -0.09261200000000001), (0.0, 0.0, 0.0, 1.0), 4)
-    # Joint 6 : (6, b'FL_hip_joint', 0, 10, 9, 1, 0.0, 0.0, -0.802851455917, 0.802851455917, 20.0, 52.4, b'FL_hip', (1.0, 0.0, 0.0), (0.170269, 0.044814, -0.000515), (0.0, 0.0, 0.0, 1.0), 0)
-    # Joint 7 : (7, b'FL_thigh_joint', 0, 11, 10, 1, 0.0, 0.0, -1.0471975512, 4.18879020479, 55.0, 28.6, b'FL_thigh', (0.0, 1.0, 0.0), (0.003311, 0.084415, -3.1e-05), (0.0, 0.0, 0.0, 1.0), 6)
-    # Joint 8 : (8, b'FL_calf_joint', 0, 12, 11, 1, 0.0, 0.0, -2.69653369433, -0.916297857297, 55.0, 28.6, b'FL_calf', (0.0, 1.0, 0.0), (0.003237, 0.022327, -0.17267400000000002), (0.0, 0.0, 0.0, 1.0), 7)
-    # Joint 9 : (9, b'FL_foot_fixed', 4, -1, -1, 0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, b'FL_foot', (0.0, 0.0, 0.0), (-0.006435, 0.0, -0.09261200000000001), (0.0, 0.0, 0.0, 1.0), 8)
-    # Joint 10 : (10, b'RR_hip_joint', 0, 13, 12, 1, 0.0, 0.0, -0.802851455917, 0.802851455917, 20.0, 52.4, b'RR_hip', (1.0, 0.0, 0.0), (-0.195731, -0.049186, -0.000515), (0.0, 0.0, 0.0, 1.0), 0)
-    # Joint 11 : (11, b'RR_thigh_joint', 0, 14, 13, 1, 0.0, 0.0, -1.0471975512, 4.18879020479, 55.0, 28.6, b'RR_thigh', (0.0, 1.0, 0.0), (-0.003311, -0.084415, -3.1e-05), (0.0, 0.0, 0.0, 1.0), 10)
-    # Joint 12 : (12, b'RR_calf_joint', 0, 15, 14, 1, 0.0, 0.0, -2.69653369433, -0.916297857297, 55.0, 28.6, b'RR_calf', (0.0, 1.0, 0.0), (0.003237, -0.022327, -0.17267400000000002), (0.0, 0.0, 0.0, 1.0), 11)
-    # Joint 13 : (13, b'RR_foot_fixed', 4, -1, -1, 0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, b'RR_foot', (0.0, 0.0, 0.0), (-0.006435, 0.0, -0.09261200000000001), (0.0, 0.0, 0.0, 1.0), 12)
-    # Joint 14 : (14, b'RL_hip_joint', 0, 16, 15, 1, 0.0, 0.0, -0.802851455917, 0.802851455917, 20.0, 52.4, b'RL_hip', (1.0, 0.0, 0.0), (-0.195731, 0.044814, -0.000515), (0.0, 0.0, 0.0, 1.0), 0)
-    # Joint 15 : (15, b'RL_thigh_joint', 0, 17, 16, 1, 0.0, 0.0, -1.0471975512, 4.18879020479, 55.0, 28.6, b'RL_thigh', (0.0, 1.0, 0.0), (-0.003311, 0.084415, -3.1e-05), (0.0, 0.0, 0.0, 1.0), 14)
-    # Joint 16 : (16, b'RL_calf_joint', 0, 18, 17, 1, 0.0, 0.0, -2.69653369433, -0.916297857297, 55.0, 28.6, b'RL_calf', (0.0, 1.0, 0.0), (0.003237, 0.022327, -0.17267400000000002), (0.0, 0.0, 0.0, 1.0), 15)
-    # Joint 17 : (17, b'RL_foot_fixed', 4, -1, -1, 0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, b'RL_foot', (0.0, 0.0, 0.0), (-0.006435, 0.0, -0.09261200000000001), (0.0, 0.0, 0.0, 1.0), 16)
-
-    # simulate()
+    print("Done Training")
 
 
 if __name__ == '__main__':
     main()
 
 
-[1,2,5.4,123,41]
+# [1,2,5.4,123,41]

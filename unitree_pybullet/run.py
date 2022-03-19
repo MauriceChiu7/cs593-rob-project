@@ -42,12 +42,12 @@ p.setRealTimeSimulation(0)
 
 joints=[]
 
-with open("final_actions.csv","r") as csvfile:
+with open("final_actions2.csv","r") as csvfile:
     reader = csv.reader(csvfile)
     for row in reader:
-        print(row)
+        # print(row)
         strRow = np.array(row)
-        fltRow = strRow.astype(np.float)
+        fltRow = strRow.astype(float)
         p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, fltRow)
         for _ in range(10):
             p.stepSimulation()
@@ -57,4 +57,4 @@ with open("final_actions.csv","r") as csvfile:
             #print("num points=",len(pts))
             #for pt in pts:
             #    print(pt[9])
-        time.sleep(2.)
+        # time.sleep(2.)
