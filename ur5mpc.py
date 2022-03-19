@@ -1,11 +1,12 @@
+import argparse
+import csv
+from itertools import chain
+import math
+import numpy as np
+import os
 import pybullet as p
 import pybullet_data
-import numpy as np
 import torch
-import csv
-import os
-import math
-from itertools import chain
 
 import ur5util as ur5
 # from ur5pybullet import ur5
@@ -175,7 +176,7 @@ def main():
 
         p.restoreState(stateId)
         applyAction(handy, ur5.ACTIVE_JOINTS, bestAction)
-        finalActions.append(bestAction)
+        finalActions.append(bestAction.tolist())
 
         print("Iteration: ", count)
         print()
@@ -187,8 +188,53 @@ def main():
         csvwriter = csv.writer(csvfile)
         csvwriter.writerows(finalActions)
 
+def playback():
+    filename = "./ur5_final_actions.csv"
+    file = open(filename)
+    csvreader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
+    finalActions = []
+    for row in csvreader:
+        finalActions.append(row)
+    # print(finalActions)
+    file.close()
+
+    p.connect(p.GUI)
+    p.setGravity(0, 0, -9.8)
+    # p.setTimeStep(1./50000)
+    plane = p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
+    urdfFlags = p.URDF_USE_SELF_COLLISION
+    
+    ## Loads the UR5 into the environment
+    path = f"{os.getcwd()}/ur5pybullet"
+    os.chdir(path) # Needed to change directory to load the UR5
+    handy = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE)
+
+    # Enable collision for all the link pairs
+    for l0 in range(p.getNumJoints(handy)):
+        for l1 in range(p.getNumJoints(handy)):
+            if (not l1>l0):
+                enableCollision = 1
+                # print("collision for pair",l0,l1, p.getJointInfo(handy,l0)[12],p.getJointInfo(handy,l1)[12], "enabled=",enableCollision)
+                p.setCollisionFilterPair(handy, handy, l1, l0, enableCollision)
+    
+    moveToStartingPose(handy, ur5.ACTIVE_JOINTS)
+
+    for env_step in range(len(finalActions)):
+        applyAction(handy, ur5.ACTIVE_JOINTS, finalActions[env_step])
+
+    # while True:
+    #     p.stepSimulation()
+
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='CS 593-ROB - Project Milestone 2')
+    parser.add_argument('-p', '--play', action='store_true', help='Set true to playback the recorded best actions.')
+
+    args = parser.parse_args()
+    
+    if args.play:
+        playback()
+    else: 
+        main()
 
 
 
