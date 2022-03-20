@@ -48,12 +48,19 @@ def getStateSeq(actionSeq, uid, jointIds):
     return stateSeq
 
 def getActionSequenceCost(actionSeq, hFutureDest, uid, jointIds):
-    actionSeq2 = actionSeq.reshape(len(hFutureDest), -1)
+    actionSeq2 = actionSeq.reshape(len(hFutureDest), -1) # Get H action sequences
     target_traj_cost = 0
     st = getState(actionSeq2[0], uid, jointIds)
     htarg = hFutureDest[0]
     target_traj_cost += dist(st, htarg)
-    return target_traj_cost
+
+    # Although we probably should've calculated the cost of every state, this error is proved to be too big and causes mayham.
+    # for h in range(H):
+    #     st = getState(actionSeq2[h], uid, jointIds)
+    #     htarg = hFutureDest[h]
+    #     target_traj_cost += dist(st, htarg)
+
+    return target_traj_cost # The action sequence cost
 
 def moveToStartingPose(uid, jointIds):
     for _ in range(100):
