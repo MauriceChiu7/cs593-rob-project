@@ -1,8 +1,8 @@
-from mimetypes import init
+from random import getstate
+from tkinter.ttk import Separator
+from turtle import right
 import pybullet as p
-import time
 import os
-import sys
 import pybullet_data
 import numpy as np
 import torch
@@ -10,6 +10,18 @@ import csv
 import math
 
 maxForceId = 0
+
+def diff(v1, v2):
+    return [x1 - x2 for x1, x2 in zip(v1, v2)]
+
+
+def magnitude(v):
+    return math.sqrt(sum([x*x for x in v]))
+
+
+def dist(p1, p2):
+    return magnitude(diff(p1, p2))
+
 
 def loadA1():
     p.connect(p.GUI)
@@ -32,7 +44,7 @@ def loadA1():
 
     jointIds=[]
 
-    maxForceId = p.addUserDebugParameter("maxForce",0,100,20)
+    maxForceId = p.addUserDebugParameter("maxForce",0,500,20)
 
     # Set resistance to none
     for j in range(p.getNumJoints(quadruped)):
@@ -86,32 +98,21 @@ def getState(quadruped):
     RR_hip_joint = p.getLinkState(quadruped, 10)[0]
     RL_hip_joint = p.getLinkState(quadruped, 14)[0]
 
-    # Foot states
-    # FR_foot = p.getLinkState(quadruped, 5)[0]
-    # FL_foot = p.getLinkState(quadruped, 9)[0]
-    # RR_foot = p.getLinkState(quadruped, 13)[0]
-    # RL_foot = p.getLinkState(quadruped, 17)[0]
-    # return [FR_hip_joint, FL_hip_joint, RR_hip_joint, RL_hip_joint, FR_foot, FL_foot, RR_foot, RL_foot]
-
-    # print('These are the FR, FL, RR, RL hip joints respectively: ', FR_hip_joint, FL_hip_joint, RR_hip_joint, RL_hip_joint)
     return [FR_hip_joint, FL_hip_joint, RR_hip_joint, RL_hip_joint]
 
 
 """Apply a random action to the all the links/joints of the hip."""
 def applyAction(quadruped, jointIds, action):
     # Makes the action read from the toggle bar for forces
-    # fs = [p.readUserDebugParameter(maxForceId)] * 12
-    # p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action, forces=fs)
+    fs = [p.readUserDebugParameter(maxForceId)] * 12
+    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action, forces=fs)
 
-    # Generate states for each action in each plan
-    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
-    # print("Action: \n", plans[g][h])
     for _ in range(10):
         p.stepSimulation()
 
 
 """Calculate the cost of moving to the 'next' state."""
-def getStateCost(state, prevState):
+def getStateCost(state, prevState, s0):
     z_init = 0.480031    # Z-coord of hip joint at initial state
     # z_prev = (prevState[0][2] + prevState[1][2] + prevState[3][2] + prevState[4][2])/4 
     z1 = state[0][2]
@@ -142,26 +143,24 @@ def getStateCost(state, prevState):
     diffX = prevX - currX   # Calculate if moving forward
 
     # calculate where the FR and FL hip's y coordinates are
-    currY = (abs(state[0][1] + state[1][1]) + abs(state[2][1] + state[3][1])) * 0.5
-    straightY = 0
-    diffY = currY    # Calculate if straight
+    diffY = (abs(state[0][1] + state[1][1]) + abs(state[2][1] + state[3][1])) * 0.5
+    # diffY = currY    # Calculate if straight
     #####
 
-    ##### Calculate cost of feeting staying on ground
-    # fr_footz = state[4][2]
-    # fl_footz = state[5][2]
-    # rr_footz = state[6][2]
-    # rl_footz = state[7][2]
+    ##### Calculate cost from target_x
+    # Want it to move 5 units in x direction
+    target_x = []
+    for tup in s0:
+        t = (tup[0] + 5, tup[1], tup[2])
+        target_x.append(t)
 
-    # total = 0
-    # total += abs(fr_footz - fl_footz)
-    # total += abs(fr_footz - rr_footz)
-    # total += abs(fr_footz - rl_footz)
-    # total += abs(fl_footz - rr_footz)
-    # total += abs(fl_footz - rl_footz)
-    # total += abs(rl_footz - rr_footz)
-    # foot_diff = total/6
-    #####
+    dist_cost = 0
+    for n in range(4):
+        dist_cost += dist(list(state[n]), list(s0[n]))
+
+    # print(s0)
+    # print(state)
+    # print(dist_cost)
 
     # totalCost = 10*body_tilt + 10*heightDiff + 20*diffX
     # totalCost = 100*body_tilt + 100*heightDiff + 100*diffX + 30*diffY + foot_diff*100
@@ -175,63 +174,52 @@ def getPathCost(stateSet, s0):
     cost = 0
     for x in range(len(stateSet)):
         if x == 0:
-            cost += getStateCost(stateSet[x], s0)
+            cost += getStateCost(stateSet[x], s0, s0)
         else:
-            cost += getStateCost(stateSet[x], stateSet[x-1])
+            cost += getStateCost(stateSet[x], stateSet[x-1], s0)
     return cost
 
 
-def sampleNormDistr(quadruped, mu, sigma):
-    maxes = [0.23,0.81,-0.98,0.14,0.83,-0.95,0.28,1.32,-0.94,0.13,1.30,-0.93]
-    maxes = [1, 3.2, 0.5, 0.6, 3.2, 0.5, 1.2, 5.2, 0.5 ,0.6, 5.2, 0.5]
-    maxes = [1, 3.2, 0.5, 0.6, 3.2, 0.5]
+def sampleNormDistr(quadruped, mu, sigma, G, H):
+    # maxes = [0.23,0.81,-0.98,0.14,0.83,-0.95,0.28,1.32,-0.94,0.13,1.30,-0.93]
+    # maxes = [1, 3.2, 0.5, 0.6, 3.2, 0.5, 1.2, 5.2, 0.5 ,0.6, 5.2, 0.5]
+    maxes = [3, 3.2, 0.5, 3, 3.2, 0.5]
     maxes = torch.tensor(maxes)
-    mins = [-0.15, 0.63, -1.75, -0.27, 0.53, -1.74, -0.13, 0.27, -1.84, -0.25, 0.24, -1.84]
-    mins = [-0.6, -0.5, -7.0, -1.0, -0.5, -7.0, -0.6, -0.5, -7.2, -1.0, -0.5, -7.2]
-    mins = [-0.6, -0.5, -7.0, -1.0, -0.5, -7.0]
+    # mins = [-0.15, 0.63, -1.75, -0.27, 0.53, -1.74, -0.13, 0.27, -1.84, -0.25, 0.24, -1.84]
+    # mins = [-0.6, -0.5, -7.0, -1.0, -0.5, -7.0, -0.6, -0.5, -7.2, -1.0, -0.5, -7.2]
+    mins = [1, -0.5, -7.0, 1, -0.5, -7.0]
     mins = torch.tensor(mins)
 
-    # Need to calculate inverseKinematics
-    footIDs = [5, 9, 13, 17]
+    # action_sequence = []
+    # samp = np.random.multivariate_normal(mu.numpy(), sigma.numpy()).reshape(H, len(mins))
+    # samp = np.clip(samp, mins, maxes)
+    # action_sequence.append(torch.tensor(samp.reshape(-1)))
+    # for x in range(len(mu)):
+    #     action = torch.normal(mean = mu[x], std = sigma[x])
+    #     action = torch.clamp(action, mins, maxes)
+    #     action = action.tolist()
 
-    action_sequence = []
-    for x in range(len(mu)):
-        action = torch.normal(mean = mu[x], std = sigma[x])
-        maxCmpr = torch.gt(action, maxes)
-        minCmpr = torch.gt(mins, action)
-        for b in range(len(maxCmpr)):
-            if maxCmpr[b]:
-                action[b] = maxes[b]
-            if minCmpr[b]:
-                action[b] = mins[b]
-        action = action.tolist()
+    #     # This is needed if you have mu vector of size 6
+    #     front_right = action[:3]
+    #     front_left = action[3:]
+    #     action = action + front_left + front_right
+    #     action_sequence.append(action)
+    actionSeqSet = [] # action sequence set that contains g sequences
+    for _ in range(G):
+        samp = np.random.multivariate_normal(mu.numpy(), sigma.numpy()).reshape(H, len(mins))
+        samp = np.clip(samp, mins, maxes)
+        actionSeqSet.append(torch.tensor(samp.reshape(-1)))
 
-        # This is needed if you have mu vector of size 6
-        front_right = action[:3]
-        front_left = action[3:]
-        action = action + front_left + front_right
-
-
-        # Calc inverse kinematics and divide into each foot position
-        targetPositions = []
-        targetPositions.append((action[0:3]))
-        targetPositions.append((action[3:6]))
-        targetPositions.append((action[6:9]))
-        targetPositions.append((action[9:12]))
-        # print(targetPositions)
-
-        f = p.calculateInverseKinematics2(quadruped, footIDs, targetPositions)
-        action_sequence.append(f)
-
-    return action_sequence
-    # action_sequence = torch.normal(mean=mu, std=sigma)
-    # return action_sequence
+    return torch.stack(actionSeqSet)
 
 
 def getStateSeq(action_sequence, H, quadruped, jointIds, currentID):
+    action_sequence = action_sequence.reshape(H, -1)
     state_sequence = []
     for h in range(H):
-        applyAction(quadruped, jointIds, action_sequence[h])
+        temp = torch.cat((action_sequence[h], action_sequence[h][3:]))
+        full = torch.cat((temp, action_sequence[h][:3]))
+        applyAction(quadruped, jointIds, full)
         s = getState(quadruped)
         state_sequence.append(s)
     # Restore back to original state to run the plan again
@@ -248,15 +236,18 @@ def main():
     ####### Milestone 2 ######
 
     # Initial Variables
-    G = 30                 # G is the number of paths generated (with the best 1 being picked)
-    H = 20                  # Number of states to predict per path (prediction horizon)
-    N = 5                 # How many iterations we're running the training for
-    k = int(0.4 * G)        # Choosing the top k paths to create new distribution
+    G = 10                 # G is the number of paths generated (with the best 1 being picked)
+    H = 5                # Number of states to predict per path (prediction horizon)
+    N = 100                 # How many iterations we're running the training for
+    K = int(0.4 * G)      # Choosing the top k paths to create new distribution
+    T = 5             # Number of iteration
     currentID = p.saveState()
     # mu = torch.tensor([[0.]*12]*H)
     # sigma = torch.tensor([[0.2]*12]*H)
-    mu = torch.tensor([[0.]*6]*H)
-    sigma = torch.tensor([[0.2]*6]*H)
+    mu = torch.tensor([[0.]*6]*H).flatten()
+    # sigma = torch.tensor([[0.2]*6]*H)
+    sigma = np.pi * torch.eye(len(mu))
+    # print("1\n", sigma)
     count = 0
 
     # ________________LINE 0________________
@@ -265,19 +256,22 @@ def main():
         # Sample G initial plans
         plans = []
         # Generate all the random actions for each plan
-        for _ in range(G):
-            plans.append(sampleNormDistr(quadruped, mu, sigma))
+        # for _ in range(G):
+        #     plans.append(sampleNormDistr(quadruped, mu, sigma, G, H))
+        plans = sampleNormDistr(quadruped, mu, sigma, G, H)
+        # print(plans)
 
         # ________________LINE 2________________
         # Get initial states of the joints
         # Just using floating base state for now
         s0 = getState(quadruped)
-
-        iters = 5
+        
         jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
 
         # ________________LINE 3________________
-        for i in range(iters):
+        for _ in range(T):
+            print("Start: ", p.getLinkState(quadruped, 0)[0])
+
             # ________________LINE 4b________________
             # get sequence states from sampled sequence of actions
             # initialize path set and fill it with G paths generated from the actions
@@ -302,40 +296,50 @@ def main():
             # Update normal distribution to fit top k action sequences
 
             # Take top K paths according to cost
-            topKPath = [np.array(i[0]) for i in sortedList[0:k]]
+            # topKPath = [np.array(i[0]) for i in sortedList[0:K]]
 
-            # Need if you make size of mu 6
-            # top = []
-            # for li in topKPath:
-            #     li = [i[:6] for i in li]
-            #     top.append(li)
-            # topKPath = top
+            # Each entry is all of one action, i.e. a_0
+            sep_actions = []
+            for j in range(K):
+                sep_actions.append(sortedList[j][0])
+            sta = torch.stack(sep_actions)
 
-            a = np.average(np.array(topKPath), axis=0).tolist()
-            b = np.std(np.array(topKPath), axis=0).tolist()
-            mu = torch.tensor(a)
-            sigma = torch.tensor(b)
+            mu = torch.mean(sta, dim=0)
+            sigma = torch.cov(sta.T)
+            sigma += .02 * torch.eye(len(mu))
+            # print("2\n", sigma)
 
             # ________________LINE 8________________
             # Replace bottom G-K action sequences with samples from
-            bottomActions = []
-            for _ in range(G-k):
-                actions = sampleNormDistr(quadruped, mu, sigma)
-                path = getStateSeq(actions, H, quadruped, jointIds, currentID)
-                cost = getPathCost(path, s0)
-                bottomActions.append((actions, cost))
+            # bottomActions = []
+            actions = sampleNormDistr(quadruped, mu, sigma, G-K, H)
+            actionSeqSet = torch.cat((sta, actions))
+            # for _ in range(G-k):
+            #     actions = sampleNormDistr(quadruped, mu, sigma, G, H)
+            #     path = getStateSeq(actions, H, quadruped, jointIds, currentID)
+            #     cost = getPathCost(path, s0)
+            #     bottomActions.append((actions, cost))
             
-            topActions = sortedList[0:k]
-            actionSet = bottomActions + topActions
-            actionSet = sorted(actionSet, key = lambda x: x[1])
+            # topActions = sortedList[0:k]
+            # actionSet = bottomActions + topActions
+            # actionSet = sorted(actionSet, key = lambda x: x[1])
 
         # ________________LINE 9________________
         # execute first action from the "best" model in the action sorted action sequences 
         # execute action
-        bestAction = actionSet[0][0][0]
+        six = actionSeqSet[0][:6]
+        # [0,1,2,3,4,5]
+        # 0 1 2 front right
+        # 3 4 5 front left
+        # 3 4 5 rear right
+        # 0 1 2 rear left
+        temp = torch.cat((six, six[3:]))
+        bestAction = torch.cat((temp, six[:3]))
+        p.restoreState(currentID)
         applyAction(quadruped, jointIds, bestAction)
         finalActions.append(bestAction)
 
+        print("End: ", p.getLinkState(quadruped, 0)[0])
         # save state after
         currentID = p.saveState()
 
@@ -361,5 +365,3 @@ def main():
 if __name__ == '__main__':
     main()
 
-
-# [1,2,5.4,123,41]
