@@ -6,6 +6,7 @@ import numpy as np
 import os
 import pybullet as p
 import pybullet_data
+import time
 import torch
 
 import ur5util as ur5
@@ -207,7 +208,8 @@ def playback():
 
     p.connect(p.GUI)
     p.setGravity(0, 0, -9.8)
-    # p.setTimeStep(1./50000)
+    p.setRealTimeSimulation(0)
+    p.setTimeStep(1./500)
     plane = p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     urdfFlags = p.URDF_USE_SELF_COLLISION
     
@@ -228,6 +230,7 @@ def playback():
 
     for env_step in range(len(finalActions)):
         applyAction(handy, ur5.ACTIVE_JOINTS, finalActions[env_step])
+        time.sleep(1./125.)
 
     # while True:
     #     p.stepSimulation()
