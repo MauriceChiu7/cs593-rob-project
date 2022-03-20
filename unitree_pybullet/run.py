@@ -42,7 +42,7 @@ p.setRealTimeSimulation(0)
 
 joints=[]
 
-with open("final_actions2.csv","r") as csvfile:
+with open("final_actions.csv","r") as csvfile:
     reader = csv.reader(csvfile)
     for row in reader:
         # print(row)

@@ -337,7 +337,7 @@ def main():
         bestAction = torch.cat((temp, six[:3]))
         p.restoreState(currentID)
         applyAction(quadruped, jointIds, bestAction)
-        finalActions.append(bestAction)
+        finalActions.append(bestAction.to_list())
 
         print("End: ", p.getLinkState(quadruped, 0)[0])
         # save state after
