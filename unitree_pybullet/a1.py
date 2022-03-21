@@ -295,6 +295,8 @@ def main():
         bestAction = actionSeqSet[0][:len(jointIds)]
     
         p.restoreState(currentID)   # Before applying action, restore state to previous
+        a1Pos = p.getLinkState(quadruped, 0)[0]
+        p.resetDebugVisualizerCamera( cameraDistance=2, cameraYaw=0, cameraPitch=-20, cameraTargetPosition=a1Pos)
         applyAction(quadruped, jointIds, bestAction)
         finalActions.append(bestAction.tolist())    # Keep track of all actions
 

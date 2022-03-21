@@ -178,16 +178,16 @@ def main():
             
         # 9. Execute the first action from the best action sequence.
         bestAction = actionSeqSet[0][:len(ur5.ACTIVE_JOINTS)]
-        print("=== bestAction ===")
-        print(f'best cost: {getActionSequenceCost(actionSeqSet[0], hFutureDest, handy, ur5.ACTIVE_JOINTS)}')
-        print(bestAction)
+        # print("=== bestAction ===")
+        # print(f'best cost: {getActionSequenceCost(actionSeqSet[0], hFutureDest, handy, ur5.ACTIVE_JOINTS)}')
+        # print(bestAction)
 
         p.restoreState(stateId)
         applyAction(handy, ur5.ACTIVE_JOINTS, bestAction)
         finalActions.append(bestAction.tolist())
 
         print("Iteration: ", count)
-        print()
+        # print()
         count += 1
 
     # Write final actions to file
@@ -230,7 +230,8 @@ def playback():
 
     for env_step in range(len(finalActions)):
         applyAction(handy, ur5.ACTIVE_JOINTS, finalActions[env_step])
-        time.sleep(1./125.)
+        # time.sleep(1./125.)
+        time.sleep(1./25.)
 
     # while True:
     #     p.stepSimulation()
