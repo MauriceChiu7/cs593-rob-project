@@ -111,37 +111,14 @@ def applyAction(quadruped, jointIds, action):
     for _ in range(10):
         p.stepSimulation()
 
-"""Applies an action to each joint, then returns the position of the floating base."""
-def getState(quadruped, jointIds, action):    # Changed
-    applyAction(quadruped, jointIds, action)
-    floating_base_pos = p.getLinkState(quadruped, 0)[0] # a1's floating base center of mass position
-    return floating_base_pos
-
-"""Calculates the total cost of each path/plan."""
-"""NOTE: only calculating +0.5 x-dist as cost."""
-def getPathCost(quadruped, jointIds, actionSeq, s0, H):
-    resolution = 0.5
-    hFutureStates = []
-    x, y, z = s0
-    for _ in range(H):
-        x += resolution
-        hFutureStates.append((x, y, z))
-    actionSeq = actionSeq.reshape(H, -1)
-    cost = 0
-    state = getState(quadruped, jointIds, actionSeq[0])
-    target = hFutureStates[0]
-    cost += dist(state, target)
-    
-    return cost
-
-# """Calculate the cost of moving to the 'next' state."""
-# def getStateCost(state, prevState, s0):
+"""Calculate other methods to tweak the cost function."""
+# def getOtherCosts(jointIds, actionSeq, s0, H, hip_s0):
 #     z_init = 0.480031    # Z-coord of hip joint at initial state
 #     # z_prev = (prevState[0][2] + prevState[1][2] + prevState[3][2] + prevState[4][2])/4 
-#     z1 = state[0][2]
-#     z2 = state[1][2]
-#     z3 = state[2][2]
-#     z4 = state[3][2]
+#     z1 = hip_s0[0][2]
+#     z2 = hip_s0[1][2]
+#     z3 = hip_s0[2][2]
+#     z4 = hip_s0[3][2]
 
 #     ##### Calculating Tilt of Floating Body
 #     sums = 0
@@ -158,11 +135,11 @@ def getPathCost(quadruped, jointIds, actionSeq, s0, H):
 #     # Just want z-coordinate to stay same--not in air or crouching
 #     avgZ = (z1+z2+z3+z4)/4
 #     heightDiff = abs(avgZ - z_init)
-
+    
 #     ##### Calculate FR and FL hip's x,y coordinates
 #     # calculate where the FR and FL hip's x coordinates are
 #     currX = (state[0][0] + state[1][0]) * 0.5
-#     prevX = (prevState[0][0] + prevState[1][0]) * 0.5
+#     prevX = (hip_s0[0][0] + hip_s0[1][0]) * 0.5
 #     diffX = prevX - currX   # Calculate if moving forward
 
 #     # calculate where the FR and FL hip's y coordinates are
@@ -190,6 +167,37 @@ def getPathCost(quadruped, jointIds, actionSeq, s0, H):
 #     # totalCost = 100*body_tilt + 1000*heightDiff + 100*diffX + 100*diffY + foot_diff*100
 #     totalCost = 30*body_tilt + 10*heightDiff + 40*diffX + 30*diffY
 #     return totalCost
+
+
+"""Applies an action to each joint, then returns the position of the floating base."""
+def getState(quadruped, jointIds, action):    # Changed
+    applyAction(quadruped, jointIds, action)
+    floating_base_pos = p.getLinkState(quadruped, 0)[0] # a1's floating base center of mass position
+    return floating_base_pos
+
+"""Calculates the total cost of each path/plan."""
+"""NOTE: only calculating +0.5 x-dist as cost."""
+def getPathCost(quadruped, jointIds, actionSeq, s0, H, hip_s0):
+    resolution = 0.5
+    hFutureStates = []
+    x, y, z = s0
+    for _ in range(H):
+        x += resolution
+        hFutureStates.append((x, y, z))
+    actionSeq = actionSeq.reshape(H, -1)
+    cost = 0
+    state = getState(quadruped, jointIds, actionSeq[0])  # Only doing first action bc total errors make it skewed
+    target = hFutureStates[0]
+    cost += dist(state, target)
+
+    # Calculate costs for all the actions of the plan
+    # for h in range(H):
+    #     state = getState(quadruped, jointIds, actionSeq[h])
+    #     target = hFutureStates[h]
+    #     cost += dist(state, target)
+    #     cost += getOtherCosts(jointIds, actionSeq, s0, H, hip_s0)
+    # print("COST: ", cost)
+    return cost
 
 """Samples random points from normal distribution."""
 def sampleNormDistr(jointsRange, mu, sigma, G, H):
@@ -229,17 +237,23 @@ def main():
     for _ in range(N):
         currentID = p.saveState() # Save the state before simulations. # Changed
 
-        # ________________LINE 1________________
+        # ________________LINE 1file:///homes/chen4066/Downloads/sanchez-gonzalez18a.pdf________________
         # Sample G initial plans and generate all the random actions for each plan
         plans = sampleNormDistr(jointsRange, mu, sigma, G, H)
 
         # ________________LINE 2________________
         # Use floating base center of mass initial state position for now to compare
-        s0 = p.getLinkState(quadruped, 0)[0] 
+        s0 = p.getLinkState(quadruped, 0)[0]
+        hip_s0 = []
+        hip_s0.append(p.getLinkState(quadruped, 2)[0])
+        hip_s0.append(p.getLinkState(quadruped, 6)[0])
+        hip_s0.append(p.getLinkState(quadruped, 10)[0])
+        hip_s0.append(p.getLinkState(quadruped, 14)[0])
+
 
         # ________________LINE 3________________
         for _ in range(T):
-            print("Start: ", p.getLinkState(quadruped, 0)[0]) # a1's floating base center of mass position
+            # print("Start: ", p.getLinkState(quadruped, 0)[0]) # a1's floating base center of mass position
 
             # ________________LINE 4b________________
             # Get sequence states from sampled sequence of actions
@@ -250,7 +264,7 @@ def main():
                 # Restore back to original state to run the plan again
                 p.restoreState(currentID)
                 # getPathCost - applies action, gets that state, returns path cost
-                cost = getPathCost(quadruped, jointIds, plan, s0, H)
+                cost = getPathCost(quadruped, jointIds, plan, s0, H, hip_s0)
                 actionSetCosts.append((plan, cost))
 
             # ________________LINE 6________________
@@ -284,9 +298,8 @@ def main():
         applyAction(quadruped, jointIds, bestAction)
         finalActions.append(bestAction.tolist())    # Keep track of all actions
 
-        print("End: ", p.getLinkState(quadruped, 0)[0])
+        # print("End: ", p.getLinkState(quadruped, 0)[0])
         print("Iteration: ", count)
-        print("This is the ID: ", currentID)
         count += 1
 
     # Write to actions
@@ -313,7 +326,6 @@ def playback():
 
     p.setRealTimeSimulation(0)
     p.setTimeStep(1./500)
-    # p.getCameraImage(10,10)
 
     jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
 
@@ -321,7 +333,8 @@ def playback():
         a1Pos = p.getLinkState(quadruped, 0)[0]
         p.resetDebugVisualizerCamera( cameraDistance=2, cameraYaw=0, cameraPitch=-20, cameraTargetPosition=a1Pos)
         applyAction(quadruped, jointIds, finalActions[env_step])
-        time.sleep(1./125.)
+        # time.sleep(1./125.)
+        time.sleep(1./25.)
 
 
 if __name__ == '__main__':
