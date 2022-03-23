@@ -27,9 +27,9 @@ def getJointForceRange(uid, jointIds):
     forces = getJointsMaxForce(uid, jointIds)
     jointsForceRange = []
     for f in forces:
-        mins = -f
-        maxs = f
-        jointsForceRange.append((mins, maxs))
+        min = -f
+        max = f
+        jointsForceRange.append((min, max))
     return jointsForceRange
 
 def initialDist(uid, jointIds, G, H):
@@ -40,6 +40,30 @@ def initialDist(uid, jointIds, G, H):
     mu = torch.mean(dist, dim=0)
     sigma = torch.cov(dist.T)
     return (mu, sigma)
+
+def loadUR5():
+    p.connect(p.GUI)
+    p.setAdditionalSearchPath(pybullet_data.getDataPath())
+    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
+    p.setGravity(0, 0, -9.8)
+    p.setTimeStep(1./500)
+    # p.setRealTimeSimulation(1)
+    urdfFlags = p.URDF_USE_INERTIA_FROM_FILE
+
+    ## Loads the UR5 into the environment
+    path = f"{os.getcwd()}/ur5pybullet"
+    os.chdir(path) # Needed to change directory to load the UR5
+    uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE)
+
+    # Enable collision for all the link pairs
+    for l0 in range(p.getNumJoints(uid)):
+        for l1 in range(p.getNumJoints(uid)):
+            if (not l1>l0):
+                enableCollision = 1
+                # print("collision for pair",l0,l1, p.getJointInfo(uid,l0)[12],p.getJointInfo(uid,l1)[12], "enabled=",enableCollision)
+                p.setCollisionFilterPair(uid, uid, l1, l0, enableCollision)
+
+    return urdfFlags, uid
 
 def loadA1():
     p.connect(p.GUI)
@@ -129,7 +153,7 @@ def applyAction(quadruped, jointIds, action):
     # fs = [p.readUserDebugParameter(maxForceId)] * 12      
     # p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action, forces=fs)
 
-    p.setJointMotorControlArray(quadruped, jointIds, p.TORQUE_CONTROL, forces=action*300)
+    p.setJointMotorControlArray(quadruped, jointIds, p.TORQUE_CONTROL, action)
     for _ in range(10):
         p.stepSimulation()
 
@@ -141,7 +165,7 @@ def getState(quadruped, jointIds, action):
 
 """Calculates the total cost of each path/plan."""
 def getPathCost(quadruped, jointIds, actionSeq, H, Goal):
-    weights = [1,5]
+    weights = [3,1]
     # Reshape action sequence to array of arrays (originally just a single array)
     actionSeq = actionSeq.reshape(H, -1)
     # Initialize cost
@@ -150,11 +174,9 @@ def getPathCost(quadruped, jointIds, actionSeq, H, Goal):
     for h in range(H):
         currAction = actionSeq[h]
         state = getState(quadruped, jointIds, currAction)
-        distCost = weights[0] * dist(state, Goal) # distance from goal
-        actionCost = weights[1] * dist(actionSeq[h], torch.zeros(len(currAction))) # gets the magnitude of actions (shouldn't apply huge actions)
-        cost += distCost   
-        cost += actionCost 
-        print(f"dist cost: {distCost}, action cost: {actionCost}")
+        cost += weights[0] * dist(state, Goal)   # distance from goal
+        cost += weights[1] * dist(actionSeq[h], torch.zeros(len(currAction))) # gets the magnitude of actions (shouldn't apply huge actions)
+    # print("COST: ", cost)
     return cost
 
 """Samples random points from normal distribution."""
@@ -176,18 +198,15 @@ def main():
     jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
     jointsRange = getJointForceRange(quadruped, jointIds)
 
-    # for _ in range(100):
-    #     p.stepSimulation()
-    # while(1):
-    #     applyAction(quadruped, jointIds, [200.]*12)
-    #     p.stepSimulation()
+    for _ in range(100):
+        p.stepSimulation()
     ####### Milestone 2 ######
 
     # Initial Variables
-    N = 500                 # How many iterations we're running the training for
-    T = 30                   # Number of training iteration
-    G = 5                  # G is the number of paths generated (with the best 1 being picked)
-    H = int(0.3 * N)        # Number of states to predict per path (prediction horizon)
+    N = 100                 # How many iterations we're running the training for
+    T = 5                   # Number of training iteration
+    G = 10                  # G is the number of paths generated (with the best 1 being picked)
+    H = int(0.1 * N)                  # Number of states to predict per path (prediction horizon)
     K = int(0.4 * G)        # Choosing the top k paths to create new distribution
     Goal = (100,0,p.getLinkState(quadruped, 2)[0][2])
     print("GOAL: ", Goal)
@@ -258,7 +277,7 @@ def main():
         bestAction = actionSeqSet[0][:len(jointIds)]
     
         p.restoreState(currentID)   # Before applying action, restore state to previous
-        # a1Pos = p.getLinkState(quadruped, 0)[0]
+        a1Pos = p.getLinkState(quadruped, 0)[0]
         # p.resetDebugVisualizerCamera( cameraDistance=2, cameraYaw=0, cameraPitch=-20, cameraTargetPosition=a1Pos)
         applyAction(quadruped, jointIds, bestAction)
         finalActions.append(bestAction.tolist())    # Keep track of all actions
