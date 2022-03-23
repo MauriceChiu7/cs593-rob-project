@@ -67,6 +67,35 @@ def moveToStartingPose(uid, jointIds):
     for _ in range(100):
         applyAction(uid, jointIds, [-2.6,-1.5,1.7,0,0,0,0,0])
 
+def loadUR5():
+    p.connect(p.GUI)
+    p.setAdditionalSearchPath(pybullet_data.getDataPath())
+    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
+    p.setGravity(0, 0, -9.8)
+    p.setTimeStep(1./500)
+    # p.setRealTimeSimulation(1)
+    urdfFlags = p.URDF_USE_INERTIA_FROM_FILE
+    p.URDF_USE_SELF_COLLISION
+
+    ## Loads the UR5 into the environment
+    path = f"{os.getcwd()}/ur5pybullet"
+    os.chdir(path) # Needed to change directory to load the UR5
+    uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE)
+
+    # Enable collision for all the link pairs
+    for l0 in range(p.getNumJoints(uid)):
+        for l1 in range(p.getNumJoints(uid)):
+            if (not l1>l0):
+                enableCollision = 1
+                # print("collision for pair",l0,l1, p.getJointInfo(uid,l0)[12],p.getJointInfo(uid,l1)[12], "enabled=",enableCollision)
+                p.setCollisionFilterPair(uid, uid, l1, l0, enableCollision)
+
+    
+    global jointsRange
+    jointsRange = ur5.getJointRange(p, uid)
+
+    return urdfFlags, uid
+
 # Constants: 
 END_EFFECTOR_INDEX = 7 # The end effector link index
 N = 100 # number of environmental steps
@@ -76,26 +105,29 @@ T = 10  # Define our constant T (times to update mean and standard deviation for
 K = int(0.4 * G) # numbers of action sequences to keep
 
 def main():
-    p.connect(p.GUI)
-    plane = p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
-    p.setGravity(0, 0, -9.8)
-    urdfFlags = p.URDF_USE_SELF_COLLISION
+    # p.connect(p.GUI)
+    # plane = p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
+    # p.setGravity(0, 0, -9.8)
+    # urdfFlags = p.URDF_USE_SELF_COLLISION
     
     ## Loads the UR5 into the environment
-    path = f"{os.getcwd()}/ur5pybullet"
-    os.chdir(path) # Needed to change directory to load the UR5
-    handy = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE)
+    # path = f"{os.getcwd()}/ur5pybullet"
+    # os.chdir(path) # Needed to change directory to load the UR5
+    # handy = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE)
 
     # Enable collision for all the link pairs
-    for l0 in range(p.getNumJoints(handy)):
-        for l1 in range(p.getNumJoints(handy)):
-            if (not l1>l0):
-                enableCollision = 1
-                # print("collision for pair",l0,l1, p.getJointInfo(handy,l0)[12],p.getJointInfo(handy,l1)[12], "enabled=",enableCollision)
-                p.setCollisionFilterPair(handy, handy, l1, l0, enableCollision)
+    # for l0 in range(p.getNumJoints(handy)):
+    #     for l1 in range(p.getNumJoints(handy)):
+    #         if (not l1>l0):
+    #             enableCollision = 1
+    #             # print("collision for pair",l0,l1, p.getJointInfo(handy,l0)[12],p.getJointInfo(handy,l1)[12], "enabled=",enableCollision)
+    #             p.setCollisionFilterPair(handy, handy, l1, l0, enableCollision)
     
-    global jointsRange
-    jointsRange = ur5.getJointRange(p, handy)
+
+
+    # global jointsRange
+    # jointsRange = ur5.getJointRange(p, handy)
+    urdfFlag, handy = loadUR5()
 
     moveToStartingPose(handy, ur5.ACTIVE_JOINTS)
     # exit(0)
