@@ -1,5 +1,6 @@
 import argparse
 import csv
+from datetime import datetime
 import os
 import pybullet as p
 import pybullet_data
@@ -7,8 +8,6 @@ import math
 import numpy as np
 import torch
 import time
-
-from unitree_pybullet.a1 import loadA1
 
 """
 Calculates the difference between two vectors.
@@ -55,21 +54,6 @@ def getJointsForceRange(uid, jointIds):
     return jointsForceRange
 
 """
-Gets initial mean and sigma for Normal Distributions.
-"""
-def initialDist(jointsForceRange, numOfPlans, horiLen):
-    mu = torch.zeros(horiLen, len(jointsForceRange)).flatten()
-    sigma = np.pi * torch.eye(len(mu))
-    dist = genActionSeqSetFromNormalDist(mu, sigma, numOfPlans, horiLen, jointsForceRange)
-    mu = torch.mean(dist, dim=0)
-    sigma = torch.cov(dist.T)
-    if args.verbose: print(f"initial mu:\n{mu}")
-    if args.verbose: print(f"initial mu.size():\n{mu.size()}")
-    if args.verbose: print(f"initial sigma:\n{sigma}")
-    if args.verbose: print(f"initial sigma.size():\n{sigma.size()}")
-    return (mu, sigma)
-
-"""
 Generates a action sequence set
 with mean of mu and stdev of sigma of size 
 [numOfPlans, numOfJoints * horiLen]
@@ -87,16 +71,77 @@ def genActionSeqSetFromNormalDist(mu, sigma, numOfPlans, horiLen, jointsForceRan
     return actionSeqSet
 
 """
+Applys a random action to the all the joints.
+"""
+def applyAction(uid, jointIds, action):
+    action = torch.tensor(action)
+    torqueScalar = 1
+    if args.robot == 'ur5':
+        correction = 105
+        action = torch.where(action > 0, torch.add(action, correction), torch.add(action, -correction))
+        # torqueScalar = 1
+        torqueScalar = 15
+    else:
+        torqueScalar = 15
+    action = torch.mul(action, torqueScalar)
+    if args.verbose: print(f"action applied: {action}")
+    p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=action)
+    for _ in range(SIM_STEPS):
+        p.stepSimulation()
+
+"""
+Applies an action to each joint of the UR5 then returns the corresponding state.
+"""
+def ur5_getState(action, uid, jointIds):
+    END_EFFECTOR_INDEX = 7 # The end effector link index.
+    applyAction(uid, jointIds, action)
+    eePos = p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0]
+    return eePos
+
+"""
+Applies an action to each joint of the A1 then returns the corresponding state.
+"""
+def a1_getState(uid, jointIds, action):
+    applyAction(uid, jointIds, action)
+    floating_base_pos = p.getLinkState(uid, 0)[0] # a1's floating base center of mass position
+    return floating_base_pos
+
+"""
 Calculates the cost of an action sequence for the UR5 robot.
 """
-def ur5_actionSeqCost():
-    pass
+def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests):
+    weight = [1,1]
+    actionSeq2 = actionSeq.reshape(H, -1) # Get H action sequences
+    cost = 0
+    for h in range(H):
+        st = ur5_getState(actionSeq2[h], uid, jointIds)
+        htarg = futureDests[h]
+        cost += dist(st, htarg)
+        # distCost += weight[0] * dist(st, htarg)
+        # if magnitude(actionSeq2[h])
+        # actionCost += weight[1] * sth_here
+    if args.verbose: print(f"...dist cost: {cost}")
+    return cost # The action sequence cost
 
 """
 Calculates the cost of an action sequence for the A1 robot.
 """
-def a1_actionSeqCost():
-    pass
+def a1_actionSeqCost(uid, jointIds, actionSeq, H, goal):
+    weights = [1, 0]
+    # Reshape action sequence to array of arrays (originally just a single array)
+    actionSeq = actionSeq.reshape(H, -1)
+    # Initialize cost
+    cost = 0
+    # Loop through each action of the plan and add cost
+    for h in range(H):
+        currAction = actionSeq[h]
+        state = a1_getState(uid, jointIds, currAction)
+        distCost = weights[0] * dist(state, goal) # distance from goal
+        actionCost = weights[1] * dist(actionSeq[h], torch.zeros(len(currAction))) # gets the magnitude of actions (shouldn't apply huge actions)
+        cost += distCost   
+        cost += actionCost 
+        if args.verbose: print(f"...dist cost: {distCost}, action cost: {actionCost}")
+    return cost
 
 """
 Loads pybullet environment with a horizontal plane and earth like gravity.
@@ -105,7 +150,10 @@ def loadEnv():
     if args.verbose: print(f"\nloading environment...\n")
     p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
-    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
+    if args.robot == 'ur5':
+        p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
+    else:
+        p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0])
     p.setGravity(0, 0, -9.8)
     p.setTimeStep(1./500)
     # p.setRealTimeSimulation(1)
@@ -172,59 +220,81 @@ def loadA1():
 """
 Moves the robots to their starting position.
 """
-def moveToStartingPose(uid, robot, jointIds):
+def moveToStartingPose(uid, jointIds):
     if args.robot == 'ur5':
-        for _ in range(100):
-            # applyAction(uid, jointIds, [-2.6,-1.5,1.7,0,0,0,0,0])
-            pass
+        if args.verbose: print(f"\nmoving UR5 to starting pose...\n")
+        for _ in range(160):
+            applyAction(uid, jointIds, [-5,-0,0,0,0,0,0,0])
+        if args.verbose: print(f"...UR5 moved to starting pose\n")
     else:
+        if args.verbose: print(f"\nwaiting for A1 to settle...\n")
         for _ in range(50):
             p.stepSimulation()
+        if args.verbose: print(f"A1 has settled...\n")
+
+SIM_STEPS = 3
+CTL_FREQ = 20    # Hz
+LOOKAHEAD_T = 2  # s
+EXEC_T = .5      # s
 
 def main():
+    startTime = datetime.now()
+    startTimeStr = startTime.strftime('%Y-%m-%d %H:%M:%S')
+    print(f"\ntraing start time: {startTimeStr}\n")
+
     if args.verbose: print(f"args: {args}")
     loadEnv()
 
     uid = jointsForceRange = None
-    END_EFFECTOR_INDEX = N = G = H = T = K = ACTIVE_JOINTS = Goal = None
+    N = G = H = T = K = ACTIVE_JOINTS = goal = H_exec = None
 
     # Setting up robot specific constants.
     if args.robot == 'ur5':
         # Setting up trajectory for UR5.
-        resolution = 0.1
+        resolution = 0.01
         trajX = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.cos(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         trajY = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.sin(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         trajZ = [5 for z in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         traj = np.array(list(zip(trajX, trajY, trajZ))) / 10
         if args.verbose: print(f"trajectory length: {len(traj)}")
-        END_EFFECTOR_INDEX = 7 # The end effector link index.
-        N = len(traj)    # Number of environmental steps.
-        G = 20           # Number of plans.
-        H = 5            # The horizon length.
-        T = 10           # Times to update mean and standard deviation for the distribution.
-        K = int(0.4 * G) # Numbers of action sequences to keep.
-        if args.verbose: print(f"G = {G}, H = {H}, T = {T}, K = {K}")
+        N = len(traj)                               # Number of environmental steps.
+        G = 10                                      # Number of plans.
+        H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))    # The horizon length.
+        H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
+        T = 20                                      # Times to update mean and standard deviation for the distribution.
+        K = int(0.4 * G)                            # Numbers of action sequences to keep.
         ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
         uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
     else: 
         # Setting up goal coordinates for A1.
-        Goal = (100, 0, p.getLinkState(uid, 2)[0][2])
-        N = 100
-        G = 30
-        H = 5
-        T = 30
+        N = 500
+        G = 10
+        H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))
+        H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
+        T = 20
         K = int(0.4 * G)
-        if args.verbose: print(f"N = {N}, G = {G}, H = {H}, T = {T}, K = {K}")
         uid, jointsForceRange, activeJoints = loadA1()
+        goal = (100, 0, p.getLinkState(uid, 2)[0][2])
+        if args.verbose: print(f"set A1's goal to: {goal}")
         ACTIVE_JOINTS = activeJoints
+    print(f"N = {N}, G = {G}, H = {H}, H_exec = {H_exec}, T = {T}, K = {K}")
+    if args.verbose: print(f"ACTIVE_JOINTS: {ACTIVE_JOINTS}")
 
-    # moveToStartingPose()
+    moveToStartingPose(uid, ACTIVE_JOINTS)
+    # while 1:
+    #     p.stepSimulation()
 
-    mu, sigma = initialDist(jointsForceRange, 100, H)
+    mu = torch.zeros(H, len(jointsForceRange)).flatten()
+    sigma = np.pi * torch.eye(len(mu))
+    if args.verbose: print(f"initial mu:\n{mu}")
+    if args.verbose: print(f"initial mu.size():\n{mu.size()}")
+    if args.verbose: print(f"initial sigma:\n{sigma}")
+    if args.verbose: print(f"initial sigma.size():\n{sigma.size()}")
 
     # ___LINE 0___
-    bestActions = []
+    finalActions = []
     for envStep in range(N):
+        if not args.verbose: print(f"\ntraining envStep {envStep}...")
         stateId = p.saveState() # save the state before simulation.
 
         # Get H future destinations from trajectory
@@ -245,77 +315,88 @@ def main():
 
         # ___LINE 3___
         for t in range(T):
-            if args.verbose: print(f"\n...training envStep {envStep}, iteration {t}")
-        # ___LINE 4a___
-        # (Milestone 3) Directly modify your action sequence using Gradient optimization. 
-        # It takes your generated action sequences, cost, and "back propagation" and returns a better action sequence. 
-        # Done through training a graph neural network to learn the "images" of our robots.
+            if args.verbose: print(f"\ntraining envStep {envStep}, iteration {t}...")
+            # ___LINE 4a___
+            # (Milestone 3) Directly modify your action sequence using Gradient optimization. 
+            # It takes your generated action sequences, cost, and "back propagation" and returns a better action sequence. 
+            # Done through training a graph neural network to learn the "images" of our robots.
 
-        # ___LINE 4b___
-        # Get state sequence from action sequence.
-        planCosts = []
-        for actionSeq in actionSeqSet:
-            p.restoreState(stateId)
+            # ___LINE 4b___
+            # Get state sequence from action sequence.
+            planCosts = []
+            for actionSeq in actionSeqSet:
+                p.restoreState(stateId)
 
-            # ___LINE 5___
-            # Calculate the cost of the state sequence.
-            cost = 0
-            if args.robot == 'ur5':
-                cost = ur5_actionSeqCost()
-            else:
-                cost = a1_actionSeqCost()
+                # ___LINE 5___
+                # Calculate the cost of the state sequence.
+                cost = 0
+                if args.robot == 'ur5':
+                    cost = ur5_actionSeqCost(uid, ACTIVE_JOINTS, actionSeq, H, futureStates)
+                else:
+                    cost = a1_actionSeqCost(uid, ACTIVE_JOINTS, actionSeq, H, goal)
+                planCosts.append((actionSeq, cost))
 
-            planCosts.append((actionSeq, cost))
+            # ___LINE 6___
+            # Sort action sequences by cost.
+            sortedActionSeqSet = sorted(planCosts, key = lambda x: x[1])
 
-        # ___LINE 6___
-        # Sort action sequences by cost.
-        sortedActionSeqSet = sorted(planCosts, key = lambda x: x[1])
+            # ___LINE 7___
+            # Update normal distribution to fit top K action sequences.
+            eliteActionSeqSet = []
+            for eliteActionSeq in range(K):
+                eliteActionSeqSet.append(sortedActionSeqSet[eliteActionSeq][0])
+            eliteActionSeqSet = torch.stack(eliteActionSeqSet)
 
-        # ___LINE 7___
-        # Update normal distribution to fit top K action sequences.
-        eliteActionSeqSet = []
-        for eliteActionSeq in range(K):
-            eliteActionSeqSet.append(sortedActionSeqSet[eliteActionSeq][0])
-        eliteActionSeqSet = torch.stack(eliteActionSeqSet)
+            mu = torch.mean(eliteActionSeqSet, dim=0)
+            sigma = torch.cov(eliteActionSeqSet.T)
+            sigma += .02 * torch.eye(len(mu)) # add a small amount of noise to the diagonal to replan to next target
+            if args.verbose: print(f"mu for envStep {envStep}:\n{mu}")
+            if args.verbose: print(f"sigma for envStep {envStep}:\n{sigma}")
 
-        mu = torch.mean(eliteActionSeqSet, dim=0)
-        sigma = torch.cov(eliteActionSeqSet.T)
-        sigma += .02 * torch.eye(len(mu)) # add a small amount of noise to the diagonal to replan to next target
-
-        # ___LINE 8___
-        # Replace bottom G-K sequences with better action sequences.
-        replacementSet = genActionSeqSetFromNormalDist(mu, sigma, G-K, H, jointsForceRange)
-        actionSeqSet = torch.cat((eliteActionSeqSet, replacementSet))
+            # ___LINE 8___
+            # Replace bottom G-K sequences with better action sequences.
+            replacementSet = genActionSeqSetFromNormalDist(mu, sigma, G-K, H, jointsForceRange)
+            actionSeqSet = torch.cat((eliteActionSeqSet, replacementSet))
 
         # ___LINE 9___
         # Execute the best action.
-        bestAction = actionSeqSet[0][:len(ACTIVE_JOINTS)]
-        # if args.verbose: print(f"\nbestAction: {bestAction}\n")
+        bestActions = [actSeq[:len(ACTIVE_JOINTS)] for i, actSeq in enumerate(actionSeqSet) if i < H_exec]
         
         p.restoreState(stateId)
-        # applyAction(ACTIVE_JOINTS, bestAction)
-        # bestActions.append(bestAction.tolist())
+        for act in bestActions:
+            applyAction(uid, ACTIVE_JOINTS, act)
+            finalActions.append(act.tolist())    # Keep track of all actions
+
+    if args.verbose: print(f"\n=== finalActions ===\n{finalActions}\n")
+    
+    print("training done!\n")
 
     # while 1:
     #     p.stepSimulation()
-    if args.verbose: print(f"\nwriting best actions to file...\n")
-    filename = f"../{args.robot}_best_actions.csv"
+    if args.verbose: print(f"\nwriting final actions to file...\n")
+    filename = f"../{args.robot}_final_actions.csv"
     with open(filename, 'w') as csvfile:
         csvwriter = csv.writer(csvfile)
-        csvwriter.writerows(bestActions)
-    if args.verbose: print(f"\n...best actions wrote to file: ./{args.robot}_best_actions.csv\n")
+        csvwriter.writerows(finalActions)
+    if args.verbose: print(f"\n...final actions wrote to file: ./{args.robot}_final_actions.csv\n")
+
+    endTime = datetime.now()
+    endTimeStr = endTime.strftime('%Y-%m-%d %H:%M:%S')
+    print(f"\ntraing end time: {endTimeStr}\n")
+    print(f"\ntime elapsed: {endTime-startTime}\n")
+    
 
 def playback():
-    if args.verbose: print(f"\nreading best actions from file: ./{args.robot}_best_actions.csv...\n")
-    filename = "./{args.robot}_best_actions.csv"
+    if args.verbose: print(f"\nreading final actions from file: ./{args.robot}_final_actions.csv...\n")
+    filename = "./{args.robot}_final_actions.csv"
     file = open(filename)
     csvreader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
     finalActions = []
     for row in csvreader:
         finalActions.append(row)
     file.close()
-    if args.verbose: print(f"\n...best actions read\n")
-    if args.verbose: print(f"finalActions:\n{finalActions}")
+    if args.verbose: print(f"\n...final actions read\n")
+    if args.verbose: print(f"\n=== finalActions ===\n{finalActions}\n")
     
     loadEnv()
 
@@ -328,11 +409,23 @@ def playback():
         uid, jointsForceRange, activeJoints = loadA1()
         ACTIVE_JOINTS = activeJoints
 
-    # moveToStartingPose()
+    moveToStartingPose(uid, ACTIVE_JOINTS)
 
     for env_step in range(len(finalActions)):
-        # applyAction(ACTIVE_JOINTS, finalActions[env_step])
+        applyAction(uid, ACTIVE_JOINTS, finalActions[env_step])
         time.sleep(1./25.)
+
+def test():
+    print("======= in test =======")
+    ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
+    loadEnv()
+    uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
+    maxForces = []
+    for f in jointsForceRange:
+        # print(f)
+        maxForces.append(f[1])
+    while 1:
+        applyAction(uid, ACTIVE_JOINTS, torch.mul(torch.tensor(maxForces), 20))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='CS 593-ROB - Project Milestone 2')
@@ -342,11 +435,10 @@ if __name__ == '__main__':
     # parser.add_argument('-G', '--nplan', help='Number of plans to generate.')
     # parser.add_argument('-T', '--train', help='Number of iterations to train.')
     # parser.add_argument('-H', '--horizon', default=5, help='Set the horizon length.')
-    # parser.add_argument('')
-
     args = parser.parse_args()
     
     if args.play:
         playback()
     else:
+        # test()
         main()
