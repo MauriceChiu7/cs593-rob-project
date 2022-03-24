@@ -40,6 +40,19 @@ def initialDist(uid, jointIds, G, H):
     sigma = np.pi * torch.eye(len(mu))
     return (mu, sigma)
 
+def refineDist(mu, sigma):
+    # print(mu)
+    mu = mu[12:]
+    zeroes = torch.zeros(12)
+    mu = torch.cat([mu,zeroes])
+    # print(mu)
+    temp_sig = np.pi * torch.eye(len(mu))
+    for i in range(len(temp_sig)-1):
+        for j in range(len(temp_sig[0])-1):
+            temp_sig[i][j] = sigma[i+1][j+1]
+
+    return mu,temp_sig
+
 def loadA1(train):
     # only render when doing playback, not when training!
     if train:
@@ -126,7 +139,8 @@ def getState(quadruped, jointIds, action):
 
 """Calculates the total cost of each path/plan."""
 def getPathCost(quadruped, jointIds, actionSeq, H, Goal):
-    weights = [1,5]
+    weights = [1,4,30]
+    z_init = 0.480031
     # Reshape action sequence to array of arrays (originally just a single array)
     actionSeq = actionSeq.reshape(H, -1)
     # Initialize cost
@@ -136,9 +150,11 @@ def getPathCost(quadruped, jointIds, actionSeq, H, Goal):
         currAction = actionSeq[h]
         state = getState(quadruped, jointIds, currAction)
         distCost = weights[0] * dist(state, Goal) # distance from goal
-        actionCost = weights[1] * dist(actionSeq[h], torch.zeros(len(currAction))) # gets the magnitude of actions (shouldn't apply huge actions)
+        actionCost = weights[1] * magnitude(actionSeq[h]) # gets the magnitude of actions (shouldn't apply huge actions)
+        zCost = weights[2] * abs(state[2]-z_init)
         cost += distCost   
         cost += actionCost 
+        cost += zCost
         # print(f"dist cost: {distCost}, action cost: {actionCost}")
     return cost
 
@@ -176,7 +192,9 @@ def train():
     Goal = (100,0,p.getLinkState(quadruped, 2)[0][2])
     print("GOAL: ", Goal)
 
-    mu, sigma = initialDist(quadruped, jointIds, G, H)    
+    mu, sigma = initialDist(quadruped, jointIds, G, H)
+    # print("mu: ", mu)    
+    # print("sigma: ", sigma)    
     count = 0   # debugging
 
     # ________________LINE 0________________
@@ -213,11 +231,17 @@ def train():
             sep_actions = []
             for j in range(K):
                 sep_actions.append(sortedList[j][0])
+            # print("sep_actions: ", sep_actions)
             sep_actions = torch.stack(sep_actions)
+            # print("sep_actions: ", sep_actions)
+
             # Get the mean and std dev. of each action a_i
             mu = torch.mean(sep_actions, dim=0)
             sigma = torch.cov(sep_actions.T)
             sigma += .03 * torch.eye(len(mu))   # add a small amount of noise to the diagonal to replan to next target
+            # print("mu: ", mu)    
+            # print("sigma: ", sigma)
+
 
             # ________________LINE 8________________
             # Replace bottom G-K action sequences with samples from refined distribution above
@@ -225,13 +249,16 @@ def train():
             actionSeqSet = torch.cat((sep_actions, refined_actions))
 
         # ________________LINE 9________________
-        # Execute first action from the "best" model in the action sorted action sequences 
+        # Execute first action from tvfhe "best" model in the action sorted action sequences 
         bestAction = actionSeqSet[0][:len(jointIds)]    
         p.restoreState(currentID)   # Before applying action, restore state to previous
         # a1Pos = p.getLinkState(quadruped, 0)[0]
         # p.resetDebugVisualizerCamera( cameraDistance=2, cameraYaw=0, cameraPitch=-20, cameraTargetPosition=a1Pos)
         applyAction(quadruped, jointIds, bestAction)
         finalActions.append(bestAction.tolist())    # Keep track of all actions
+
+        mu,sigma = refineDist(mu,sigma)
+        # mu,sigma = initialDist(quadruped, jointIds, G, H)
 
         # print("End: ", p.getLinkState(quadruped, 0)[0])
         print("Iteration: ", count)
@@ -250,7 +277,10 @@ def train():
 
 
 def playback():
-    filename = args.dir + "results_G" + str(args.G) + "_T" + str(args.T) + "_N" + str(args.N)
+    if args.f != 'NA':
+        filename = args.dir + args.f
+    else:
+        filename = args.dir + "results_G" + str(args.G) + "_T" + str(args.T) + "_N" + str(args.N)
     f = open(filename)
     csvreader = csv.reader(f, quoting=csv.QUOTE_NONNUMERIC)
     finalActions = []
@@ -273,7 +303,7 @@ def playback():
         # p.resetDebugVisualizerCamera( cameraDistance=2, cameraYaw=0, cameraPitch=-20, cameraTargetPosition=a1Pos)
         applyActionPB(quadruped, jointIds, finalActions[env_step])
         # time.sleep(1./125.)
-        time.sleep(1./25.)
+        time.sleep(.5)
 
 def test():
     flag, quadruped = loadA1(False)
@@ -302,11 +332,11 @@ if __name__ == '__main__':
     parser.add_argument('-G', type=int, default=150,help='Num plans')
     parser.add_argument('-T', type=int, default=5,help='Training Iterations for 1 action')
     parser.add_argument('-N', type=int, default=150,help='Num Env Steps')
-
+    parser.add_argument('-f', type=str, default='NA', help='Specific filename for playback')
     parser.add_argument('-p', '--play', action='store_true', help='Set true to playback the recorded best actions.')
     parser.add_argument('-t', '--test', action='store_true', help='Set true to test stuff.')
     args = parser.parse_args()
-    
+       
     if args.play:
         playback()
     elif args.test:
