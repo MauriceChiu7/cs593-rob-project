@@ -8,6 +8,11 @@ import csv
 import math
 import time
 
+SIM_STEPS = 3
+CTL_FREQ = 20    # Hz
+LOOKAHEAD_T = 2  # s
+EXEC_T = .5      # s
+
 maxForceId = 0
 
 def diff(v1, v2):
@@ -36,9 +41,9 @@ def initialDist(uid, jointIds, G, H):
     jointsForceRange = getJointForceRange(uid, jointIds)
     mu = torch.zeros(H, len(jointIds)).flatten()
     sigma = np.pi * torch.eye(len(mu))
-    dist = sampleNormDistr(jointsForceRange, mu, sigma, G, H)
-    mu = torch.mean(dist, dim=0)
-    sigma = torch.cov(dist.T)
+    # dist = sampleNormDistr(jointsForceRange, mu, sigma, G, H)
+    # mu = torch.mean(dist, dim=0)
+    # sigma = torch.cov(dist.T)
     return (mu, sigma)
 
 def loadA1():
@@ -46,7 +51,7 @@ def loadA1():
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), 0, 0, 0)
     p.setGravity(0, 0, -9.8)
-    p.setTimeStep(1./500)
+    p.setTimeStep(1. / CTL_FREQ / SIM_STEPS)
     # p.setRealTimeSimulation(1)
 
     # urdfFlags = p.URDF_USE_SELF_COLLISION
@@ -129,8 +134,8 @@ def applyAction(quadruped, jointIds, action):
     # fs = [p.readUserDebugParameter(maxForceId)] * 12      
     # p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action, forces=fs)
 
-    p.setJointMotorControlArray(quadruped, jointIds, p.TORQUE_CONTROL, forces=action*300)
-    for _ in range(10):
+    p.setJointMotorControlArray(quadruped, jointIds, p.TORQUE_CONTROL, forces=action)
+    for _ in range(SIM_STEPS):
         p.stepSimulation()
 
 """Applies an action to each joint, then returns the position of the floating base."""
@@ -141,7 +146,7 @@ def getState(quadruped, jointIds, action):
 
 """Calculates the total cost of each path/plan."""
 def getPathCost(quadruped, jointIds, actionSeq, H, Goal):
-    weights = [1,5]
+    weights = [1,0]
     # Reshape action sequence to array of arrays (originally just a single array)
     actionSeq = actionSeq.reshape(H, -1)
     # Initialize cost
@@ -154,7 +159,7 @@ def getPathCost(quadruped, jointIds, actionSeq, H, Goal):
         actionCost = weights[1] * dist(actionSeq[h], torch.zeros(len(currAction))) # gets the magnitude of actions (shouldn't apply huge actions)
         cost += distCost   
         cost += actionCost 
-        print(f"dist cost: {distCost}, action cost: {actionCost}")
+        # print(f"dist cost: {distCost}, action cost: {actionCost}")
     return cost
 
 """Samples random points from normal distribution."""
@@ -185,9 +190,11 @@ def main():
 
     # Initial Variables
     N = 500                 # How many iterations we're running the training for
-    T = 30                   # Number of training iteration
-    G = 5                  # G is the number of paths generated (with the best 1 being picked)
-    H = int(0.3 * N)        # Number of states to predict per path (prediction horizon)
+    T = 20                 # Number of training iteration
+    G = 10                  # G is the number of paths generated (with the best 1 being picked)
+    # H = 10                  # Number of states to predict per path (prediction horizon)
+    H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))
+    H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
     K = int(0.4 * G)        # Choosing the top k paths to create new distribution
     Goal = (100,0,p.getLinkState(quadruped, 2)[0][2])
     print("GOAL: ", Goal)
@@ -255,13 +262,15 @@ def main():
 
         # ________________LINE 9________________
         # Execute first action from the "best" model in the action sorted action sequences 
-        bestAction = actionSeqSet[0][:len(jointIds)]
+        # bestActions = actionSeqSet[:H_exec][:len(jointIds)]
+        bestActions = [actSeq[:len(jointIds)] for i, actSeq in enumerate(actionSeqSet) if i < H_exec]
     
         p.restoreState(currentID)   # Before applying action, restore state to previous
         # a1Pos = p.getLinkState(quadruped, 0)[0]
         # p.resetDebugVisualizerCamera( cameraDistance=2, cameraYaw=0, cameraPitch=-20, cameraTargetPosition=a1Pos)
-        applyAction(quadruped, jointIds, bestAction)
-        finalActions.append(bestAction.tolist())    # Keep track of all actions
+        for act in bestActions:
+            applyAction(quadruped, jointIds, act)
+            finalActions.append(act.tolist())    # Keep track of all actions
 
         # print("End: ", p.getLinkState(quadruped, 0)[0])
         print("Iteration: ", count)
