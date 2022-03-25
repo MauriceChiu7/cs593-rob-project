@@ -37,7 +37,7 @@ def getJointForceRange(uid, jointIds):
 # creates initial distribution with mu of 0's and covariance that is the identity matrix
 def initialDist(uid, jointIds, G, H):
     mu = torch.zeros(H, len(jointIds)).flatten()
-    sigma = np.pi * torch.eye(len(mu))
+    sigma = (np.pi*10000) * torch.eye(len(mu))
     return (mu, sigma)
 
 def refineDist(mu, sigma):
@@ -118,13 +118,13 @@ def getJointsMaxForce(uid, jointIds):
 
 """Apply a random action to the all the links/joints of the hip."""
 def applyAction(quadruped, jointIds, action):
-    action = torch.mul(action, 100)
+    # action = torch.mul(action, 100)
     p.setJointMotorControlArray(quadruped, jointIds, p.TORQUE_CONTROL, forces=action)
     for _ in range(10):
         p.stepSimulation()
 
 def applyActionPB(quadruped, jointIds, action):
-    action = torch.mul(torch.tensor(action), 100)
+    # action = torch.mul(torch.tensor(action), 100)
     p.setJointMotorControlArray(quadruped, jointIds, p.TORQUE_CONTROL, forces=action)
     # p.setJointMotorControlArray(quadruped, knee_front_leftL_link, p.VELOCITY_CONTROL, 0,
     #                      kneeFrictionForce)
@@ -139,7 +139,7 @@ def getState(quadruped, jointIds, action):
 
 """Calculates the total cost of each path/plan."""
 def getPathCost(quadruped, jointIds, actionSeq, H, Goal):
-    weights = [1,4,30]
+    weights = [20,1,10]
     z_init = 0.480031
     # Reshape action sequence to array of arrays (originally just a single array)
     actionSeq = actionSeq.reshape(H, -1)
@@ -153,7 +153,7 @@ def getPathCost(quadruped, jointIds, actionSeq, H, Goal):
         actionCost = weights[1] * magnitude(actionSeq[h]) # gets the magnitude of actions (shouldn't apply huge actions)
         zCost = weights[2] * abs(state[2]-z_init)
         cost += distCost   
-        cost += actionCost 
+        cost += actionCost
         cost += zCost
         # print(f"dist cost: {distCost}, action cost: {actionCost}")
     return cost
@@ -164,7 +164,7 @@ def sampleNormDistr(jointsRange, mu, sigma, G, H):
     actionSeqSet = [] # action sequence set that contains g sequences
     for g in range(G):
         samp = np.random.multivariate_normal(mu.numpy(), sigma.numpy()).reshape(H, len(mins))
-        samp = np.clip(samp, mins, maxes)
+        samp = np.clip(samp, mins*100, maxes*100)
         actionSeqSet.append(torch.tensor(samp.reshape(-1)))
     return torch.stack(actionSeqSet)
 
@@ -187,8 +187,8 @@ def train():
     N = args.N              # How many iterations we're running the training for
     T = args.T              # Number of training iteration
     G = args.G              # G is the number of paths generated (with the best 1 being picked)
-    H = int(0.3 * N)        # Number of states to predict per path (prediction horizon)
-    K = int(0.4 * G)        # Choosing the top k paths to create new distribution
+    H = 15        # Number of states to predict per path (prediction horizon)
+    K = int(0.2 * G)        # Choosing the top k paths to create new distribution
     Goal = (100,0,p.getLinkState(quadruped, 2)[0][2])
     print("GOAL: ", Goal)
 
@@ -209,7 +209,7 @@ def train():
         # Use floating base center of mass initial state position for now to compare
 
         # ________________LINE 3________________
-        for _ in range(T):
+        for q in range(T):
             # ________________LINE 4b and 5________________
             # Get sequence states from sampled sequence of actions
             # Get cost of each path (sequence of states)
@@ -247,6 +247,7 @@ def train():
             # Replace bottom G-K action sequences with samples from refined distribution above
             refined_actions = sampleNormDistr(jointsRange, mu, sigma, G-K, H)
             actionSeqSet = torch.cat((sep_actions, refined_actions))
+            plans = actionSeqSet
 
         # ________________LINE 9________________
         # Execute first action from tvfhe "best" model in the action sorted action sequences 
@@ -257,11 +258,13 @@ def train():
         applyAction(quadruped, jointIds, bestAction)
         finalActions.append(bestAction.tolist())    # Keep track of all actions
 
-        mu,sigma = refineDist(mu,sigma)
+        # mu,sigma = refineDist(mu,sigma)
         # mu,sigma = initialDist(quadruped, jointIds, G, H)
 
         # print("End: ", p.getLinkState(quadruped, 0)[0])
-        print("Iteration: ", count)
+        print("Env_step: ", count)
+        # print("THIS IS MU: ", mu)
+        # print("THIS IS SIGMA: ", sigma)
         count += 1
 
     # Write to actions
