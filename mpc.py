@@ -121,14 +121,17 @@ Calculates the cost of an action sequence for the UR5 robot.
 def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests, stateId):
     p.restoreState(stateId)
     actionSeq2 = actionSeq.reshape(H, -1) # Get H action sequences
-    distCost = velCost = accCost = 0
+    cost = distCost = velCost = accCost = 0
     for h in range(H):
         st = ur5_getState(actionSeq2[h], uid, jointIds)
         htarg = futureDests[h]
+        # END_EFFECTOR_INDEX = 7 # The end effector link index.
+        # eePos = p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0]
+        # print(f"\nhtarg: {htarg}")
+        # print(f"eePos: {eePos}\n")
+        if args.verbose: print(f"dist: {dist(st, htarg)}")
         distCost += dist(st, htarg)
-        # distCost += weight[0] * dist(st, htarg)
-        # if magnitude(actionSeq2[h])
-        # actionCost += weight[1] * sth_here
+    # if args.verbose: print(f"...distCost: {distCost}")
 
     p.restoreState(stateId)
     v0 = getJointsVelocity(uid, jointIds)
@@ -145,17 +148,18 @@ def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests, stateId):
         velCost += torch.square(torch.sum(v))
         accCost += torch.square(torch.sum(a))
 
-    weight = [1, 3e21, 1e09]
+    weight = [1e2, 1e-02, 1]
     cost = weight[0] * distCost + weight[1] * accCost - weight[2] * velCost
-    if args.verbose: print(f"...distCost: {distCost}, accCost: {accCost}, velCost: {velCost}")
+    if args.verbose: print(f"...distCost: {weight[0] * distCost}, accCost: {weight[1] * accCost}, velCost: {weight[2] * velCost}")
     # ...distCost: 55.259173514720516, accCost: 2.9334241439482665e-20, velCost: 6.145710074179078e-08
+    # return distCost
     return cost # The action sequence cost
 
 """
 Calculates the cost of an action sequence for the A1 robot.
 """
 def a1_actionSeqCost(uid, jointIds, actionSeq, H, goal):
-    weights = [1, 0]
+    weights = [1, 100]
     # Reshape action sequence to array of arrays (originally just a single array)
     actionSeq = actionSeq.reshape(H, -1)
     # Initialize cost
@@ -255,9 +259,9 @@ def moveToStartingPose(uid, jointIds):
     if args.robot == 'ur5':
         if args.verbose: print(f"\nmoving UR5 to starting pose...\n")
         for _ in range(160):
-            # applyAction(uid, jointIds, [-5,-0,0,0,0,0,0,0])
-            pass
+            applyAction(uid, jointIds, [-1600,-1500,0,0,0,0,0,0])
         if args.verbose: print(f"...UR5 moved to starting pose\n")
+        
     else:
         if args.verbose: print(f"\nwaiting for A1 to settle...\n")
         for _ in range(50):
@@ -278,22 +282,30 @@ def main():
     loadEnv()
 
     uid = jointsForceRange = None
-    N = G = H = T = K = ACTIVE_JOINTS = goal = H_exec = None
+    traj = N = G = H = T = K = ACTIVE_JOINTS = goal = H_exec = None
 
     # Setting up robot specific constants.
     if args.robot == 'ur5':
         # Setting up trajectory for UR5.
-        resolution = 0.01
+        # resolution = 0.01
+        resolution = 0.1
         trajX = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.cos(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         trajY = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.sin(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         trajZ = [5 for z in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
-        traj = np.array(list(zip(trajX, trajY, trajZ))) / 10
+        traj = np.array(list(zip(trajX, trajY, trajZ)))/8
         if args.verbose: print(f"trajectory length: {len(traj)}")
+        if args.debug:
+            for pt in range(len(traj)-1):
+                p.addUserDebugLine(traj[pt],[0,0,0],traj[pt+1])
+        # while 1:
+        #     p.stepSimulation()
         N = len(traj)                               # Number of environmental steps.
-        G = 50                                      # Number of plans.
-        H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))    # The horizon length.
+        N = 20
+        G = 200                                     # Number of plans.
+        H = 5
+        # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))  # The horizon length.
         # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
-        T = 20                                      # Times to update mean and standard deviation for the distribution.
+        T = 40                                      # Times to update mean and standard deviation for the distribution.
         K = int(0.4 * G)                            # Numbers of action sequences to keep.
         ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
         uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
@@ -319,9 +331,10 @@ def main():
 
     mu = torch.zeros(H, len(jointsForceRange)).flatten()
     if args.robot == 'ur5':
-        sigma = (np.pi * 1000000 * 2) * torch.eye(len(mu))
+        # sigma = (np.pi * 1e05) * torch.eye(len(mu))
+        sigma = 2e5 * torch.eye(len(mu))
     else: 
-        sigma = (np.pi * 1000000 * 2) * torch.eye(len(mu))
+        sigma = (np.pi * 1e06) * torch.eye(len(mu))
     if args.verbose: print(f"initial mu:\n{mu}")
     if args.verbose: print(f"initial mu.size():\n{mu.size()}")
     if args.verbose: print(f"initial sigma:\n{sigma}")
@@ -385,7 +398,7 @@ def main():
             eliteActionSeqSet = torch.stack(eliteActionSeqSet)
 
             mu = torch.mean(eliteActionSeqSet, dim=0)
-            mu.add(cost)
+            # mu.add(cost)
             sigma = torch.cov(eliteActionSeqSet.T)
             sigma += .02 * torch.eye(len(mu)) # add a small amount of noise to the diagonal to replan to next target
             if args.verbose: print(f"mu for envStep {envStep}:\n{mu}")
@@ -459,7 +472,7 @@ def playback():
 
     for env_step in range(len(finalActions)):
         applyAction(uid, ACTIVE_JOINTS, finalActions[env_step])
-        time.sleep(1./25.)
+        time.sleep(1./1.)
 
 def test():
     print("======= in test =======")
@@ -479,6 +492,7 @@ if __name__ == '__main__':
     parser.add_argument('-v', '--verbose', action='store_true', help='Logs debug information.')
     parser.add_argument('-f', '--fast', action='store_true', help='Trains faster without GUI.')
     parser.add_argument('-r', '--robot', default='ur5', help='Choose which robot, "ur5" or "a1", to simulate or playback actions.')
+    parser.add_argument('-d', '--debug', action='store_true', help='Displays debug information.')
     # parser.add_argument('-G', '--nplan', help='Number of plans to generate.')
     # parser.add_argument('-T', '--train', help='Number of iterations to train.')
     # parser.add_argument('-H', '--horizon', default=5, help='Set the horizon length.')
