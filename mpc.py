@@ -77,10 +77,10 @@ def applyAction(uid, jointIds, action):
     action = torch.tensor(action)
     torqueScalar = 1
     if args.robot == 'ur5':
-        correction = 105
-        action = torch.where(action > 0, torch.add(action, correction), torch.add(action, -correction))
-        # torqueScalar = 1
-        torqueScalar = 15
+        # correction = 105
+        # action = torch.where(action > 0, torch.add(action, correction), torch.add(action, -correction))
+        torqueScalar = 1
+        # torqueScalar = 15
     else:
         torqueScalar = 15
     action = torch.mul(action, torqueScalar)
@@ -106,21 +106,48 @@ def a1_getState(uid, jointIds, action):
     floating_base_pos = p.getLinkState(uid, 0)[0] # a1's floating base center of mass position
     return floating_base_pos
 
+def getJointsVelocity(uid, jointIds):
+    linksState = p.getLinkStates(uid, jointIds, computeLinkVelocity=1)
+    jointsVelocity = []
+    for ls in linksState:
+        jointsVelocity.append(ls[6])
+    # print(f"jointsVelocity: {jointsVelocity}")
+    return jointsVelocity
+
 """
 Calculates the cost of an action sequence for the UR5 robot.
 """
-def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests):
-    weight = [1,1]
+def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests, stateId):
+    p.restoreState(stateId)
     actionSeq2 = actionSeq.reshape(H, -1) # Get H action sequences
-    cost = 0
+    distCost = velCost = accCost = 0
     for h in range(H):
         st = ur5_getState(actionSeq2[h], uid, jointIds)
         htarg = futureDests[h]
-        cost += dist(st, htarg)
+        distCost += dist(st, htarg)
         # distCost += weight[0] * dist(st, htarg)
         # if magnitude(actionSeq2[h])
         # actionCost += weight[1] * sth_here
-    if args.verbose: print(f"...dist cost: {cost}")
+
+    p.restoreState(stateId)
+    v0 = getJointsVelocity(uid, jointIds)
+    v0 = torch.tensor(v0)
+    
+    for h in range(H):
+        st = ur5_getState(actionSeq2[h], uid, jointIds)
+        v = getJointsVelocity(uid, jointIds)
+        v = torch.tensor(v)
+        # print(f"v0: \n{v0}, \nv: \n{v}")
+        a = torch.sub(torch.mul(v, v), torch.mul(v0, v0))
+        v0 = v
+        # print(f"a: \n{a}")
+        velCost += torch.square(torch.sum(v))
+        accCost += torch.square(torch.sum(a))
+
+    weight = [1, 3e21, 1e09]
+    cost = weight[0] * distCost + weight[1] * accCost - weight[2] * velCost
+    if args.verbose: print(f"...distCost: {distCost}, accCost: {accCost}, velCost: {velCost}")
+    # ...distCost: 55.259173514720516, accCost: 2.9334241439482665e-20, velCost: 6.145710074179078e-08
     return cost # The action sequence cost
 
 """
@@ -148,7 +175,10 @@ Loads pybullet environment with a horizontal plane and earth like gravity.
 """
 def loadEnv():
     if args.verbose: print(f"\nloading environment...\n")
-    p.connect(p.GUI)
+    if args.fast: 
+        p.connect(p.DIRECT) 
+    else: 
+        p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     if args.robot == 'ur5':
         p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
@@ -258,7 +288,7 @@ def main():
         traj = np.array(list(zip(trajX, trajY, trajZ))) / 10
         if args.verbose: print(f"trajectory length: {len(traj)}")
         N = len(traj)                               # Number of environmental steps.
-        G = 10                                      # Number of plans.
+        G = 50                                      # Number of plans.
         H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))    # The horizon length.
         H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
         T = 20                                      # Times to update mean and standard deviation for the distribution.
@@ -324,14 +354,15 @@ def main():
             # ___LINE 4b___
             # Get state sequence from action sequence.
             planCosts = []
+            cost = 0
             for actionSeq in actionSeqSet:
                 p.restoreState(stateId)
 
                 # ___LINE 5___
                 # Calculate the cost of the state sequence.
-                cost = 0
+                # cost = 0
                 if args.robot == 'ur5':
-                    cost = ur5_actionSeqCost(uid, ACTIVE_JOINTS, actionSeq, H, futureStates)
+                    cost = ur5_actionSeqCost(uid, ACTIVE_JOINTS, actionSeq, H, futureStates, stateId)
                 else:
                     cost = a1_actionSeqCost(uid, ACTIVE_JOINTS, actionSeq, H, goal)
                 planCosts.append((actionSeq, cost))
@@ -348,6 +379,7 @@ def main():
             eliteActionSeqSet = torch.stack(eliteActionSeqSet)
 
             mu = torch.mean(eliteActionSeqSet, dim=0)
+            mu.add(cost)
             sigma = torch.cov(eliteActionSeqSet.T)
             sigma += .02 * torch.eye(len(mu)) # add a small amount of noise to the diagonal to replan to next target
             if args.verbose: print(f"mu for envStep {envStep}:\n{mu}")
@@ -360,12 +392,14 @@ def main():
 
         # ___LINE 9___
         # Execute the best action.
-        bestActions = [actSeq[:len(ACTIVE_JOINTS)] for i, actSeq in enumerate(actionSeqSet) if i < H_exec]
-        
+        # bestActions = [actSeq[:len(ACTIVE_JOINTS)] for i, actSeq in enumerate(actionSeqSet) if i < H_exec]
+        bestAction = actionSeqSet[0][:len(ACTIVE_JOINTS)]
         p.restoreState(stateId)
-        for act in bestActions:
-            applyAction(uid, ACTIVE_JOINTS, act)
-            finalActions.append(act.tolist())    # Keep track of all actions
+        applyAction(uid, ACTIVE_JOINTS, bestAction)
+        finalActions.append(bestAction.tolist())    # Keep track of all actions
+        # for act in bestActions:
+        #     applyAction(uid, ACTIVE_JOINTS, act)
+        #     finalActions.append(act.tolist())    # Keep track of all actions
 
     if args.verbose: print(f"\n=== finalActions ===\n{finalActions}\n")
     
@@ -431,6 +465,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='CS 593-ROB - Project Milestone 2')
     parser.add_argument('-p', '--play', action='store_true', help='Set true to playback the recorded best actions.')
     parser.add_argument('-v', '--verbose', action='store_true', help='Logs debug information.')
+    parser.add_argument('-f', '--fast', action='store_true', help='Trains faster without GUI.')
     parser.add_argument('-r', '--robot', default='ur5', help='Choose which robot, "ur5" or "a1", to simulate or playback actions.')
     # parser.add_argument('-G', '--nplan', help='Number of plans to generate.')
     # parser.add_argument('-T', '--train', help='Number of iterations to train.')
