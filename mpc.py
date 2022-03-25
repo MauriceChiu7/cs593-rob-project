@@ -63,7 +63,7 @@ def genActionSeqSetFromNormalDist(mu, sigma, numOfPlans, horiLen, jointsForceRan
     actionSeqSet = []
     for _ in range(numOfPlans):
         samp = np.random.multivariate_normal(mu.numpy(), sigma.numpy()).reshape(horiLen, len(mins))
-        samp = np.clip(samp, mins, maxes)
+        # samp = np.clip(samp, mins, maxes)
         actionSeqSet.append(torch.tensor(samp.reshape(-1)))
     actionSeqSet = torch.stack(actionSeqSet)
     if args.verbose: print(f"actionSeqSet:\n{actionSeqSet}")
@@ -79,12 +79,13 @@ def applyAction(uid, jointIds, action):
     if args.robot == 'ur5':
         # correction = 105
         # action = torch.where(action > 0, torch.add(action, correction), torch.add(action, -correction))
-        torqueScalar = 1
         # torqueScalar = 15
+        torqueScalar = 1
     else:
-        torqueScalar = 15
+        # torqueScalar = 15
+        torqueScalar = 1
     action = torch.mul(action, torqueScalar)
-    if args.verbose: print(f"action applied: {action}")
+    if args.verbose: print(f"action applied: \n{action}")
     p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=action)
     for _ in range(SIM_STEPS):
         p.stepSimulation()
@@ -254,7 +255,8 @@ def moveToStartingPose(uid, jointIds):
     if args.robot == 'ur5':
         if args.verbose: print(f"\nmoving UR5 to starting pose...\n")
         for _ in range(160):
-            applyAction(uid, jointIds, [-5,-0,0,0,0,0,0,0])
+            # applyAction(uid, jointIds, [-5,-0,0,0,0,0,0,0])
+            pass
         if args.verbose: print(f"...UR5 moved to starting pose\n")
     else:
         if args.verbose: print(f"\nwaiting for A1 to settle...\n")
@@ -290,17 +292,18 @@ def main():
         N = len(traj)                               # Number of environmental steps.
         G = 50                                      # Number of plans.
         H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))    # The horizon length.
-        H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
+        # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
         T = 20                                      # Times to update mean and standard deviation for the distribution.
         K = int(0.4 * G)                            # Numbers of action sequences to keep.
         ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
         uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
     else: 
         # Setting up goal coordinates for A1.
-        N = 500
-        G = 10
-        H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))
-        H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
+        N = 20
+        G = 200
+        H = 5
+        # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))
+        # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
         T = 20
         K = int(0.4 * G)
         uid, jointsForceRange, activeJoints = loadA1()
@@ -315,7 +318,10 @@ def main():
     #     p.stepSimulation()
 
     mu = torch.zeros(H, len(jointsForceRange)).flatten()
-    sigma = np.pi * torch.eye(len(mu))
+    if args.robot == 'ur5':
+        sigma = (np.pi * 1000000 * 2) * torch.eye(len(mu))
+    else: 
+        sigma = (np.pi * 1000000 * 2) * torch.eye(len(mu))
     if args.verbose: print(f"initial mu:\n{mu}")
     if args.verbose: print(f"initial mu.size():\n{mu.size()}")
     if args.verbose: print(f"initial sigma:\n{sigma}")
@@ -407,22 +413,28 @@ def main():
 
     # while 1:
     #     p.stepSimulation()
+    endTime = datetime.now()
+    endTimeStr = endTime.strftime('%Y-%m-%d %H:%M:%S')
+
     if args.verbose: print(f"\nwriting final actions to file...\n")
-    filename = f"../{args.robot}_final_actions.csv"
-    with open(filename, 'w') as csvfile:
+    filenameLastRun = f"./{args.robot}_final_actions.csv"
+    filenameBackUp = f"./{args.robot}_final_actions_{endTimeStr}.csv"
+    with open(filenameLastRun, 'w') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerows(finalActions)
     if args.verbose: print(f"\n...final actions wrote to file: ./{args.robot}_final_actions.csv\n")
+    with open(filenameBackUp, 'w') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        csvwriter.writerows(finalActions)
+    if args.verbose: print(f"\n...final actions wrote to file: ./{args.robot}_final_actions_{endTimeStr}.csv\n")
 
-    endTime = datetime.now()
-    endTimeStr = endTime.strftime('%Y-%m-%d %H:%M:%S')
     print(f"\ntraing end time: {endTimeStr}\n")
     print(f"\ntime elapsed: {endTime-startTime}\n")
     
 
 def playback():
     if args.verbose: print(f"\nreading final actions from file: ./{args.robot}_final_actions.csv...\n")
-    filename = "./{args.robot}_final_actions.csv"
+    filename = f"./{args.robot}_final_actions.csv"
     file = open(filename)
     csvreader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
     finalActions = []
