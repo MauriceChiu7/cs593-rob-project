@@ -42,14 +42,17 @@ def initialDist(uid, jointIds, G, H):
     return (mu, sigma)
 
 def refineDist(mu, sigma):
-    # print(mu)
+    print("1")
+    print(mu)
+    # Append first set of mu to the end of the list
+    saveMu = mu[:12]
     mu = mu[12:]
-    zeroes = torch.zeros(12)
-    mu = torch.cat([mu,zeroes])
-    # print(mu)
+    mu = torch.cat([mu, saveMu])
+
+    print(mu)
     temp_sig = np.pi * torch.eye(len(mu))
     for i in range(len(temp_sig)-1):
-        for j in range(len(temp_sig[0])-1):
+        for j in range(len(temp_sig[0]) - 1):
             temp_sig[i][j] = sigma[i+1][j+1]
 
     return mu, temp_sig
