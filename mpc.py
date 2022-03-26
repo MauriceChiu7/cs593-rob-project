@@ -190,7 +190,7 @@ def loadEnv():
     else:
         p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0])
     p.setGravity(0, 0, -9.8)
-    p.setTimeStep(1./500)
+    p.setTimeStep(1./ CTL_FREQ / SIM_STEPS)
     # p.setRealTimeSimulation(1)
     if args.verbose: print(f"\n...environment loaded\n")
 
@@ -199,6 +199,7 @@ Loads the UR5 robot.
 """
 def loadUR5(activeJoints):
     if args.verbose: print(f"\nloading UR5...\n")
+    p.resetDebugVisualizerCamera( cameraDistance=1.5, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
     path = f"{os.getcwd()}/ur5pybullet"
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
@@ -322,7 +323,7 @@ def main():
         goal = (100, 0, p.getLinkState(uid, 2)[0][2])
         if args.verbose: print(f"set A1's goal to: {goal}")
         ACTIVE_JOINTS = activeJoints
-    print(f"N = {N}, G = {G}, H = {H}, H_exec = {H_exec}, T = {T}, K = {K}")
+    print(f"\nN = {N}, G = {G}, H = {H}, H_exec = {H_exec}, T = {T}, K = {K}")
     if args.verbose: print(f"ACTIVE_JOINTS: {ACTIVE_JOINTS}")
 
     moveToStartingPose(uid, ACTIVE_JOINTS)
@@ -331,8 +332,8 @@ def main():
 
     mu = torch.zeros(H, len(jointsForceRange)).flatten()
     if args.robot == 'ur5':
-        # sigma = (np.pi * 1e05) * torch.eye(len(mu))
-        sigma = 2e5 * torch.eye(len(mu))
+        sigma = (np.pi * 1e05) * torch.eye(len(mu))
+        # sigma = 2e5 * torch.eye(len(mu))
     else: 
         sigma = (np.pi * 1e06) * torch.eye(len(mu))
     if args.verbose: print(f"initial mu:\n{mu}")
@@ -343,7 +344,7 @@ def main():
     # ___LINE 0___
     finalActions = []
     for envStep in range(N):
-        if not args.verbose: print(f"\ntraining envStep {envStep}...")
+        if not args.verbose: print(f"\ntraining envStep {envStep}/{N-1}...")
         stateId = p.saveState() # save the state before simulation.
 
         # Get H future destinations from trajectory
@@ -364,7 +365,7 @@ def main():
 
         # ___LINE 3___
         for t in range(T):
-            if args.verbose: print(f"\ntraining envStep {envStep}, iteration {t}...")
+            if args.verbose: print(f"\ntraining envStep {envStep}/{N-1}, iteration {t}/{T-1}...")
             # ___LINE 4a___
             # (Milestone 3) Directly modify your action sequence using Gradient optimization. 
             # It takes your generated action sequences, cost, and "back propagation" and returns a better action sequence. 
@@ -414,7 +415,9 @@ def main():
         # bestActions = [actSeq[:len(ACTIVE_JOINTS)] for i, actSeq in enumerate(actionSeqSet) if i < H_exec]
         bestAction = actionSeqSet[0][:len(ACTIVE_JOINTS)]
         p.restoreState(stateId)
+        if args.verbose: print(f"\n===== bestAction =====")
         applyAction(uid, ACTIVE_JOINTS, bestAction)
+        if args.verbose: print(f"======================\n")
         finalActions.append(bestAction.tolist())    # Keep track of all actions
         # for act in bestActions:
         #     applyAction(uid, ACTIVE_JOINTS, act)
