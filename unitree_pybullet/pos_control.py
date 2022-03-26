@@ -26,12 +26,12 @@ def normalize(vector):
 
 # Returns the joint force range corresponding to each inputted jointID
 def getJointForceRange(uid, jointIds):
-    forces = getJointsMaxForce(uid, jointIds)
-    jointsForceRange = []
-    for f in forces:
-        mins = -f
-        maxs = f
-        jointsForceRange.append((mins, maxs))
+    # forces = getJointsMaxForce(uid, jointIds)
+    # jointsForceRange = []
+    # for f in forces:
+    #     mins = -f
+    #     maxs = f
+    #     jointsForceRange.append((mins, maxs))
     jointsForceRange = [(-2, 2)] * 12   # put a limit to how much each foot moves
     return jointsForceRange
 
@@ -41,18 +41,18 @@ def initialDist(uid, jointIds, G, H):
     sigma = np.pi * torch.eye(len(mu))
     return (mu, sigma)
 
-# def refineDist(mu, sigma):
-#     # print(mu)
-#     mu = mu[12:]
-#     zeroes = torch.zeros(12)
-#     mu = torch.cat([mu,zeroes])
-#     # print(mu)
-#     temp_sig = np.pi * torch.eye(len(mu))
-#     for i in range(len(temp_sig)-1):
-#         for j in range(len(temp_sig[0])-1):
-#             temp_sig[i][j] = sigma[i+1][j+1]
+def refineDist(mu, sigma):
+    # print(mu)
+    mu = mu[12:]
+    zeroes = torch.zeros(12)
+    mu = torch.cat([mu,zeroes])
+    # print(mu)
+    temp_sig = np.pi * torch.eye(len(mu))
+    for i in range(len(temp_sig)-1):
+        for j in range(len(temp_sig[0])-1):
+            temp_sig[i][j] = sigma[i+1][j+1]
 
-#     return mu,temp_sig
+    return mu, temp_sig
 
 def loadA1(train):
     # only render when doing playback, not when training!
@@ -119,13 +119,13 @@ def getJointsMaxForce(uid, jointIds):
 
 """Apply a random action to the all the links/joints of the hip."""
 def applyAction(quadruped, jointIds, action):
-    action = torch.mul(action, 50)
+    # action = torch.mul(action, 50)
     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, targetPositions=action)
     for _ in range(10):
         p.stepSimulation()
 
 def applyActionPB(quadruped, jointIds, action):
-    action = torch.mul(torch.Tensor(action), 50)
+    # action = torch.mul(torch.Tensor(action), 50)
     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, targetPositions=action)
     for _ in range(10):
         p.stepSimulation()
@@ -186,7 +186,7 @@ def sampleNormDistr(jointsRange, mu, sigma, G, H):
     actionSeqSet = [] # action sequence set that contains g sequences
     for g in range(G):
         samp = np.random.multivariate_normal(mu.numpy(), sigma.numpy()).reshape(H, len(mins))
-        # samp = np.clip(samp, mins*1000, maxes*1000)
+        samp = np.clip(samp, mins, maxes)
         actionSeqSet.append(torch.tensor(samp.reshape(-1)))
     return torch.stack(actionSeqSet)
 
@@ -205,7 +205,7 @@ def train():
     N = args.N              # How many iterations we're running the training for
     T = args.T              # Number of training iteration
     G = args.G              # G is the number of paths generated (with the best 1 being picked)
-    H = 10                  # Number of states to predict per path (prediction horizon)
+    H = 50                  # Number of states to predict per path (prediction horizon)
     K = int(0.3 * G)        # Choosing the top k paths to create new distribution
     Goal = (100, 0, p.getLinkState(quadruped, 2)[0][2])
     print("\nGOAL: ", Goal)
@@ -268,7 +268,7 @@ def train():
         applyAction(quadruped, jointIds, bestAction)
         finalActions.append(bestAction.tolist())    # Keep track of all actions
 
-        # mu,sigma = refineDist(mu,sigma)
+        mu,sigma = refineDist(mu,sigma)
         # mu,sigma = initialDist(quadruped, jointIds, G, H)
 
         print("Env_step: ", count)
