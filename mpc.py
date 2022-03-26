@@ -302,22 +302,22 @@ def main():
         #     p.stepSimulation()
         N = len(traj)                               # Number of environmental steps.
         N = 20
-        G = 200                                     # Number of plans.
+        G = 220                                     # Number of plans.
         H = 5
         # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))  # The horizon length.
         # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
-        T = 40                                      # Times to update mean and standard deviation for the distribution.
+        T = 120                                      # Times to update mean and standard deviation for the distribution.
         K = int(0.4 * G)                            # Numbers of action sequences to keep.
         ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
         uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
     else: 
         # Setting up goal coordinates for A1.
         N = 20
-        G = 200
+        G = 220
         H = 5
         # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))
         # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
-        T = 20
+        T = 120
         K = int(0.4 * G)
         uid, jointsForceRange, activeJoints = loadA1()
         goal = (100, 0, p.getLinkState(uid, 2)[0][2])
@@ -332,7 +332,7 @@ def main():
 
     mu = torch.zeros(H, len(jointsForceRange)).flatten()
     if args.robot == 'ur5':
-        sigma = (np.pi * 1e05) * torch.eye(len(mu))
+        sigma = (np.pi * 1e02) * torch.eye(len(mu))
         # sigma = 2e5 * torch.eye(len(mu))
     else: 
         sigma = (np.pi * 1e06) * torch.eye(len(mu))

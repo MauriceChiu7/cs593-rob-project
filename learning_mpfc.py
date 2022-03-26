@@ -14,6 +14,24 @@ SIM_STEPS = 3
 CTL_FREQ = 20    # Hz
 
 """
+Calculates the difference between two vectors.
+"""
+def diff(v1, v2):
+    return [x1 - x2 for x1, x2 in zip(v1, v2)]
+
+"""
+Calculates the magnitude of a vector.
+"""
+def magnitude(v):
+    return math.sqrt(sum([x*x for x in v]))
+
+"""
+Calculates distance between two vectors.
+"""
+def dist(p1, p2):
+    return magnitude(diff(p1, p2))
+
+"""
 Loads pybullet environment with a horizontal plane and earth like gravity.
 """
 def loadEnv():
@@ -118,7 +136,7 @@ def getJointsForceRange(uid, jointIds):
     return jointsForceRange
 
 def setUpJointsForceSlider(uid, jointIds):
-    jointsForceRange = [(-300, 300)] * len(jointIds)
+    jointsForceRange = [(-500, 500)] * len(jointIds)
     # jointsForceRange = getJointsForceRange(uid, jointIds)
     jointsForceIds = []
     for i in range(len(jointsForceRange)):
@@ -144,23 +162,102 @@ def applyAction(uid, jointIds, action):
     for _ in range(SIM_STEPS):
         p.stepSimulation()
 
+def costFunc(currMu, targ):
+    cost = diff(currMu, targ)
+    if args.verbose: print(f"...cost: {cost}")
+
+    direction = 0
+    if torch.lt(torch.tensor(cost), torch.zeros(1)): 
+        direction = -1
+    else:
+        direction = 1
+    magnitude = dist(currMu, targ)
+    
+    print(f"direction: {direction}, magnitude: {magnitude}")
+
+    return direction, magnitude
+
+def genActionSeqSetFromNormalDist(mu, sigma, G, H, jointsForceRange):
+    # mins, maxes = np.array(jointsForceRange).T
+    mins, maxes = jointsForceRange
+    actionSeqSet = []
+    for _ in range(G):
+        samp = torch.normal(mu, sigma)
+        actionSeqSet.append(torch.tensor(samp.reshape(-1)))
+    actionSeqSet = torch.stack(actionSeqSet)
+    if args.verbose: print(f"actionSeqSet:\n{actionSeqSet}")
+    if args.verbose: print(f"actionSeqSet.size():\n{actionSeqSet.size()}")
+    return actionSeqSet
 
 def main():
-    loadEnv()
-    if args.robot == 'ur5':
-        ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
-        uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
-        jointIds = ACTIVE_JOINTS
-    else:
-        uid, jointsForceRange, jointIds = loadA1()
-    jointsForceIds = setUpJointsForceSlider(uid, jointIds)
+    # loadEnv()
+    # if args.robot == 'ur5':
+    #     ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
+    #     uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
+    #     jointIds = ACTIVE_JOINTS
+    # else:
+    #     uid, jointsForceRange, jointIds = loadA1()
+    # jointsForceIds = setUpJointsForceSlider(uid, jointIds)
 
-    while 1:
-        action = []
-        for id in jointsForceIds:
-            force = p.readUserDebugParameter(id)
-            action.append(force)
-        applyAction(uid, jointIds, action)
+    # while 1:
+    #     action = []
+    #     for id in jointsForceIds:
+    #         force = p.readUserDebugParameter(id)
+    #         action.append(force)
+    #     applyAction(uid, jointIds, action)
+    
+    N = 1
+    T = 120
+    G = 220
+    K = int(0.4 * G)
+    H = 5
+
+    # mu = torch.zeros(H, len(jointsForceRange)).flatten()
+    # sigma = (np.pi * 1e05) * torch.eye(len(mu))
+    mu = torch.zeros(1)
+    sigma = (np.pi * 100) * torch.eye(len(mu))
+    print(f"mu: \n{mu}")
+    print(f"sigma: \n{sigma}")
+
+    targ = [-250]
+
+    for n in range(N):
+        actionSeqSet = genActionSeqSetFromNormalDist(mu, sigma, G, H, (-800, 800))
+        for t in range(T):
+            planCosts = []
+            cost = 0
+            for actionSeq in actionSeqSet:
+                # ___LINE 5___
+                # Calculate the cost of the state sequence.
+                if args.verbose: print(f"\ncurrMu: {actionSeq}, targMu: {targ}")
+                direction, magnitude = costFunc(actionSeq, targ)
+                
+                planCosts.append((actionSeq, direction, magnitude))
+
+            # ___LINE 6___
+            # Sort action sequences by cost.
+            sortedActionSeqSet = sorted(planCosts, key = lambda x: x[2])
+
+            # ___LINE 7___
+            # Update normal distribution to fit top K action sequences.
+            eliteActionSeqSet = []
+            for eliteActionSeq in range(K):
+                eliteActionSeqSet.append(sortedActionSeqSet[eliteActionSeq][0])
+            eliteActionSeqSet = torch.stack(eliteActionSeqSet)
+
+            mu = torch.mean(eliteActionSeqSet, dim=0)
+            mu.add(torch.mul(direction, magnitude))
+            sigma = torch.cov(eliteActionSeqSet.T)
+            # sigma += .02 * torch.eye(len(mu)) # add a small amount of noise to the diagonal to replan to next target
+            if args.verbose: print(f"mu for envStep {n}:\n{mu}")
+            if args.verbose: print(f"sigma for envStep {n}:\n{sigma}")
+
+            # ___LINE 8___
+            # Replace bottom G-K sequences with better action sequences.
+            replacementSet = genActionSeqSetFromNormalDist(mu, sigma, G-K, H, (-800, 800))
+            actionSeqSet = torch.cat((eliteActionSeqSet, replacementSet))
+
+    pass
 
 def playback():
     pass
