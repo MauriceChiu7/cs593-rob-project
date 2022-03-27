@@ -133,27 +133,27 @@ def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests, stateId):
         distCost += dist(st, htarg)
     # if args.verbose: print(f"...distCost: {distCost}")
 
-    p.restoreState(stateId)
-    v0 = getJointsVelocity(uid, jointIds)
-    v0 = torch.tensor(v0)
+    # p.restoreState(stateId)
+    # v0 = getJointsVelocity(uid, jointIds)
+    # v0 = torch.tensor(v0)
     
-    for h in range(H):
-        st = ur5_getState(actionSeq2[h], uid, jointIds)
-        v = getJointsVelocity(uid, jointIds)
-        v = torch.tensor(v)
-        # print(f"v0: \n{v0}, \nv: \n{v}")
-        a = torch.sub(torch.mul(v, v), torch.mul(v0, v0))
-        v0 = v
-        # print(f"a: \n{a}")
-        velCost += torch.square(torch.sum(v))
-        accCost += torch.square(torch.sum(a))
+    # for h in range(H):
+    #     st = ur5_getState(actionSeq2[h], uid, jointIds)
+    #     v = getJointsVelocity(uid, jointIds)
+    #     v = torch.tensor(v)
+    #     # print(f"v0: \n{v0}, \nv: \n{v}")
+    #     a = torch.sub(torch.mul(v, v), torch.mul(v0, v0))
+    #     v0 = v
+    #     # print(f"a: \n{a}")
+    #     velCost += torch.square(torch.sum(v))
+    #     accCost += torch.square(torch.sum(a))
 
-    weight = [1e2, 1e-02, 1]
-    cost = weight[0] * distCost + weight[1] * accCost - weight[2] * velCost
-    if args.verbose: print(f"...distCost: {weight[0] * distCost}, accCost: {weight[1] * accCost}, velCost: {weight[2] * velCost}")
+    # weight = [1e2, 1e-02, 1]
+    # cost = weight[0] * distCost + weight[1] * accCost - weight[2] * velCost
+    # if args.verbose: print(f"...distCost: {weight[0] * distCost}, accCost: {weight[1] * accCost}, velCost: {weight[2] * velCost}")
     # ...distCost: 55.259173514720516, accCost: 2.9334241439482665e-20, velCost: 6.145710074179078e-08
-    # return distCost
-    return cost # The action sequence cost
+    return distCost
+    # return cost # The action sequence cost
 
 """
 Calculates the cost of an action sequence for the A1 robot.
