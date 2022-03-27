@@ -301,7 +301,7 @@ def main():
         # while 1:
         #     p.stepSimulation()
         N = len(traj)                               # Number of environmental steps.
-        N = 20
+        # N = 20
         G = 220                                     # Number of plans.
         H = 5
         # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))  # The horizon length.
