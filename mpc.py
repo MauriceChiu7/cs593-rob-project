@@ -261,6 +261,8 @@ def moveToStartingPose(uid, jointIds):
         if args.verbose: print(f"\nmoving UR5 to starting pose...\n")
         for _ in range(350):
             applyAction(uid, jointIds, [-180,-180,0,0,0,0,0,0])
+        for _ in range(100):
+            p.stepSimulation()
         if args.verbose: print(f"...UR5 moved to starting pose\n")
         
     else:
