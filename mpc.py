@@ -414,16 +414,16 @@ def main():
 
         # ___LINE 9___
         # Execute the best action.
-        # bestActions = [actSeq[:len(ACTIVE_JOINTS)] for i, actSeq in enumerate(actionSeqSet) if i < H_exec]
-        bestAction = actionSeqSet[0][:len(ACTIVE_JOINTS)]
+        bestActions = [actSeq[:len(ACTIVE_JOINTS)] for i, actSeq in enumerate(actionSeqSet) if i < H_exec]
+        # bestAction = actionSeqSet[0][:len(ACTIVE_JOINTS)]
         p.restoreState(stateId)
-        if args.verbose: print(f"\n===== bestAction =====")
-        applyAction(uid, ACTIVE_JOINTS, bestAction)
-        if args.verbose: print(f"======================\n")
-        finalActions.append(bestAction.tolist())    # Keep track of all actions
-        # for act in bestActions:
-        #     applyAction(uid, ACTIVE_JOINTS, act)
-        #     finalActions.append(act.tolist())    # Keep track of all actions
+        # if args.verbose: print(f"\n===== bestAction =====")
+        # applyAction(uid, ACTIVE_JOINTS, bestAction)
+        # if args.verbose: print(f"======================\n")
+        # finalActions.append(bestAction.tolist())    # Keep track of all actions
+        for act in bestActions:
+            applyAction(uid, ACTIVE_JOINTS, act)
+            finalActions.append(act.tolist())    # Keep track of all actions
 
     if args.verbose: print(f"\n=== finalActions ===\n{finalActions}\n")
     
@@ -486,7 +486,8 @@ def playback():
 
     for env_step in range(len(finalActions)):
         applyAction(uid, ACTIVE_JOINTS, finalActions[env_step])
-        time.sleep(1./1.)
+        # time.sleep(1./1.)
+        time.sleep(1./25.)
 
 def test():
     print("======= in test =======")
