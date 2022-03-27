@@ -7,6 +7,7 @@ import torch
 import csv
 import math
 import time
+import copy
 
 maxForceId = 0
 
@@ -42,20 +43,31 @@ def initialDist(uid, jointIds, G, H):
     return (mu, sigma)
 
 def refineDist(mu, sigma):
-    # print("1")
-    # print(mu)
     # Append first set of mu to the end of the list
     saveMu = mu[:12]
     mu = mu[12:]
     mu = torch.cat([mu, saveMu])
 
+    # Create new sigma list
+    temp_sig = copy.deepcopy(sigma)
     # Append first sigma to the end of the set
-    saveSigma = sigma[0][0]
-    temp_sig = np.pi * torch.eye(len(mu))
-    for i in range(len(temp_sig)-1):
-        for j in range(len(temp_sig[0]) - 1):
+    print(sigma[0][0])
+    temp_sig[-1][-1] = sigma[0][0]
+
+    # Update top left corner
+    for i in range(len(sigma) - 1):
+        for j in range(len(sigma[0]) - 1):
             temp_sig[i][j] = sigma[i+1][j+1]
-    temp_sig[-1][-1] = saveSigma
+
+    # Update sigma last col
+    for i in range(len(sigma) - 1):
+        temp_sig[i][-1] = sigma[i+1][0]
+    # Update sigma last row
+    for j in range(len(sigma[0]) - 1):
+        temp_sig[-1][j] = sigma[0][j+1]
+
+    # print(mu)
+    # print(temp_sig)
 
     return mu, temp_sig
 
@@ -210,7 +222,7 @@ def train():
     N = args.N              # How many iterations we're running the training for
     T = args.T              # Number of training iteration
     G = args.G              # G is the number of paths generated (with the best 1 being picked)
-    H = 50                  # Number of states to predict per path (prediction horizon)
+    H = 10                  # Number of states to predict per path (prediction horizon)
     K = int(0.3 * G)        # Choosing the top k paths to create new distribution
     Goal = (100, 0, p.getLinkState(quadruped, 2)[0][2])
     print("\nGOAL: ", Goal)
