@@ -74,19 +74,19 @@ def genActionSeqSetFromNormalDist(mu, sigma, numOfPlans, horiLen, jointsForceRan
 Applys a random action to the all the joints.
 """
 def applyAction(uid, jointIds, action):
-    action = torch.tensor(action)
-    torqueScalar = 1
-    if args.robot == 'ur5':
-        # correction = 105
-        # action = torch.where(action > 0, torch.add(action, correction), torch.add(action, -correction))
-        # torqueScalar = 15
-        torqueScalar = 1
-    else:
-        # torqueScalar = 15
-        torqueScalar = 1
-    action = torch.mul(action, torqueScalar)
-    if args.verbose: print(f"action applied: \n{action}")
+    # action = torch.tensor(action)
+    # torqueScalar = 1
+    # if args.robot == 'ur5':
+    #     # correction = 105
+    #     # action = torch.where(action > 0, torch.add(action, correction), torch.add(action, -correction))
+    #     # torqueScalar = 15
+    #     torqueScalar = 1
+    # else:
+    #     # torqueScalar = 15
+    #     torqueScalar = 1
+    # action = torch.mul(action, torqueScalar)
     p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=action)
+    if args.verbose: print(f"action applied: \n{action}")
     for _ in range(SIM_STEPS):
         p.stepSimulation()
 
@@ -259,8 +259,8 @@ Moves the robots to their starting position.
 def moveToStartingPose(uid, jointIds):
     if args.robot == 'ur5':
         if args.verbose: print(f"\nmoving UR5 to starting pose...\n")
-        for _ in range(160):
-            applyAction(uid, jointIds, [-1600,-1500,0,0,0,0,0,0])
+        for _ in range(350):
+            applyAction(uid, jointIds, [-180,-180,0,0,0,0,0,0])
         if args.verbose: print(f"...UR5 moved to starting pose\n")
         
     else:
@@ -332,7 +332,7 @@ def main():
 
     mu = torch.zeros(H, len(jointsForceRange)).flatten()
     if args.robot == 'ur5':
-        sigma = (np.pi * 1e02) * torch.eye(len(mu))
+        sigma = (np.pi * 100) * torch.eye(len(mu))
         # sigma = 2e5 * torch.eye(len(mu))
     else: 
         sigma = (np.pi * 1e06) * torch.eye(len(mu))
@@ -467,6 +467,15 @@ def playback():
     if args.robot == 'ur5':
         ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
         uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
+        resolution = 0.1
+        trajX = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.cos(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
+        trajY = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.sin(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
+        trajZ = [5 for z in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
+        traj = np.array(list(zip(trajX, trajY, trajZ)))/8
+        if args.verbose: print(f"trajectory length: {len(traj)}")
+        if args.debug:
+            for pt in range(len(traj)-1):
+                p.addUserDebugLine(traj[pt],[0,0,0],traj[pt+1])
     else: 
         uid, jointsForceRange, activeJoints = loadA1()
         ACTIVE_JOINTS = activeJoints
