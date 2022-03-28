@@ -308,6 +308,7 @@ def main():
         H = 5
         # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))  # The horizon length.
         # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
+        H_exec = 3
         T = 120                                      # Times to update mean and standard deviation for the distribution.
         K = int(0.4 * G)                            # Numbers of action sequences to keep.
         ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
@@ -346,7 +347,7 @@ def main():
     # ___LINE 0___
     finalActions = []
     for envStep in range(N):
-        if not args.verbose: print(f"\ntraining envStep {envStep}/{N-1}...")
+        # if not args.verbose: print(f"\ntraining envStep {envStep}/{N-1}...")
         stateId = p.saveState() # save the state before simulation.
 
         # Get H future destinations from trajectory
@@ -367,7 +368,7 @@ def main():
 
         # ___LINE 3___
         for t in range(T):
-            if args.verbose: print(f"\ntraining envStep {envStep}/{N-1}, iteration {t}/{T-1}...")
+            print(f"\ntraining envStep {envStep}/{N-1}, iteration {t}/{T-1}...")
             # ___LINE 4a___
             # (Milestone 3) Directly modify your action sequence using Gradient optimization. 
             # It takes your generated action sequences, cost, and "back propagation" and returns a better action sequence. 
