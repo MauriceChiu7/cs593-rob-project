@@ -333,16 +333,7 @@ def main():
     # while 1:
     #     p.stepSimulation()
 
-    mu = torch.zeros(H, len(jointsForceRange)).flatten()
-    if args.robot == 'ur5':
-        sigma = (np.pi * 100) * torch.eye(len(mu))
-        # sigma = 2e5 * torch.eye(len(mu))
-    else: 
-        sigma = (np.pi * 1e06) * torch.eye(len(mu))
-    if args.verbose: print(f"initial mu:\n{mu}")
-    if args.verbose: print(f"initial mu.size():\n{mu.size()}")
-    if args.verbose: print(f"initial sigma:\n{sigma}")
-    if args.verbose: print(f"initial sigma.size():\n{sigma.size()}")
+    
 
     # ___LINE 0___
     finalActions = []
@@ -358,6 +349,17 @@ def main():
                     futureStates.append(traj[(envStep + h)%len(traj)])
                 else:
                     futureStates.append(traj[envStep + h])
+
+        mu = torch.zeros(H, len(jointsForceRange)).flatten()
+        if args.robot == 'ur5':
+            sigma = (np.pi * 100) * torch.eye(len(mu))
+            # sigma = 2e5 * torch.eye(len(mu))
+        else: 
+            sigma = (np.pi * 1e06) * torch.eye(len(mu))
+        if args.verbose: print(f"initial mu:\n{mu}")
+        if args.verbose: print(f"initial mu.size():\n{mu.size()}")
+        if args.verbose: print(f"initial sigma:\n{sigma}")
+        if args.verbose: print(f"initial sigma.size():\n{sigma.size()}")
 
         # ___LINE 1___
         # Generates G action sequences of horizon length H.
