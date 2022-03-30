@@ -334,7 +334,7 @@ def main():
         # N = 20
         G = 220                                     # Number of plans.
         G = 40
-        H = 10
+        H = 5
         # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))  # The horizon length.
         # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
         H_exec = 3
@@ -350,7 +350,7 @@ def main():
         N = 100
         G = 220
         G = 40
-        H = 5
+        H = 10
         # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))
         # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
         T = 120
