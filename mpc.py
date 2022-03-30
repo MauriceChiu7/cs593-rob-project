@@ -176,6 +176,12 @@ def a1_actionSeqCost(uid, jointIds, actionSeq, H, goal):
     # Initialize cost
     cost = 0
     # Loop through each action of the plan and add cost
+
+    # Things to try:
+    # 1. Keeping the head down (tail up)
+    # 2. Center of mass?
+    # 3. 
+
     for h in range(H):
         currAction = actionSeq[h]
         state = a1_getState(uid, jointIds, currAction)
@@ -210,7 +216,7 @@ Loads the UR5 robot.
 """
 def loadUR5(activeJoints):
     if args.verbose: print(f"\nloading UR5...\n")
-    p.resetDebugVisualizerCamera( cameraDistance=1.5, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
+    p.resetDebugVisualizerCamera( cameraDistance=1.8, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
     path = f"{os.getcwd()}/ur5pybullet"
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
@@ -328,7 +334,7 @@ def main():
         # N = 20
         G = 220                                     # Number of plans.
         G = 40
-        H = 5
+        H = 10
         # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))  # The horizon length.
         # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
         H_exec = 3
