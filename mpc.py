@@ -417,16 +417,16 @@ def main():
 
         # ___LINE 9___
         # Execute the best action.
-        bestActions = [actSeq[:len(ACTIVE_JOINTS)] for i, actSeq in enumerate(actionSeqSet) if i < H_exec]
-        # bestAction = actionSeqSet[0][:len(ACTIVE_JOINTS)]
+        # bestActions = [actSeq[:len(ACTIVE_JOINTS)] for i, actSeq in enumerate(actionSeqSet) if i < H_exec]
+        bestAction = actionSeqSet[0][:len(ACTIVE_JOINTS)]
         p.restoreState(stateId)
         # if args.verbose: print(f"\n===== bestAction =====")
-        # applyAction(uid, ACTIVE_JOINTS, bestAction)
+        applyAction(uid, ACTIVE_JOINTS, bestAction)
         # if args.verbose: print(f"======================\n")
-        # finalActions.append(bestAction.tolist())    # Keep track of all actions
-        for act in bestActions:
-            applyAction(uid, ACTIVE_JOINTS, act)
-            finalActions.append(act.tolist())    # Keep track of all actions
+        finalActions.append(bestAction.tolist())    # Keep track of one best action
+        # for act in bestActions:                   # Keep track of all best actions
+        #     applyAction(uid, ACTIVE_JOINTS, act)
+        #     finalActions.append(act.tolist())
 
     if args.verbose: print(f"\n=== finalActions ===\n{finalActions}\n")
     
