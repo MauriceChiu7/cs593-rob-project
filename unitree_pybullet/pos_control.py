@@ -194,7 +194,7 @@ def train():
     finalActions = []
     jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
     footIds = [5, 9, 13, 17]   # only feet
-    jointsRange = [(-0.2, 0.2)] * 12
+    jointsRange = [(-3, 3)] * 12
 
     ####### Milestone 2 ######
 
