@@ -40,6 +40,16 @@ def getJointsMaxForce(uid, jointIds):
     return jointsMaxForces
 
 """
+Gets the upper and lower positional limits of each joint.
+"""
+def getJointsRange(uid, jointIds):
+    jointsRange = []
+    for a in jointIds:
+        jointInfo = p.getJointInfo(uid, a)
+        jointsRange.append((jointInfo[8], jointInfo[9]))
+    return jointsRange
+
+"""
 Gets the min and max force of all active joints.
 """
 def getJointsForceRange(uid, jointIds):
@@ -85,7 +95,8 @@ def applyAction(uid, jointIds, action):
     #     # torqueScalar = 15
     #     torqueScalar = 1
     # action = torch.mul(action, torqueScalar)
-    p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=action)
+    # p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=action)
+    p.setJointMotorControlArray(uid, jointIds, p.POSITION_CONTROL, targetPositions=action)
     if args.verbose: print(f"action applied: \n{action}")
     for _ in range(SIM_STEPS):
         p.stepSimulation()
@@ -133,27 +144,27 @@ def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests, stateId):
         distCost += dist(st, htarg)
     # if args.verbose: print(f"...distCost: {distCost}")
 
-    p.restoreState(stateId)
-    v0 = getJointsVelocity(uid, jointIds)
-    v0 = torch.tensor(v0)
+    # p.restoreState(stateId)
+    # v0 = getJointsVelocity(uid, jointIds)
+    # v0 = torch.tensor(v0)
     
-    for h in range(H):
-        st = ur5_getState(actionSeq2[h], uid, jointIds)
-        v = getJointsVelocity(uid, jointIds)
-        v = torch.tensor(v)
-        # print(f"v0: \n{v0}, \nv: \n{v}")
-        a = torch.sub(torch.mul(v, v), torch.mul(v0, v0))
-        v0 = v
-        # print(f"a: \n{a}")
-        velCost += torch.square(torch.sum(v))
-        accCost += torch.square(torch.sum(a))
+    # for h in range(H):
+    #     st = ur5_getState(actionSeq2[h], uid, jointIds)
+    #     v = getJointsVelocity(uid, jointIds)
+    #     v = torch.tensor(v)
+    #     # print(f"v0: \n{v0}, \nv: \n{v}")
+    #     a = torch.sub(torch.mul(v, v), torch.mul(v0, v0))
+    #     v0 = v
+    #     # print(f"a: \n{a}")
+    #     velCost += torch.square(torch.sum(v))
+    #     accCost += torch.square(torch.sum(a))
 
-    weight = [1e2, 1e-02, 1]
-    cost = weight[0] * distCost + weight[1] * accCost - weight[2] * velCost
-    if args.verbose: print(f"...distCost: {weight[0] * distCost}, accCost: {weight[1] * accCost}, velCost: {weight[2] * velCost}")
+    # weight = [1e2, 1e-02, 1]
+    # cost = weight[0] * distCost + weight[1] * accCost - weight[2] * velCost
+    # if args.verbose: print(f"...distCost: {weight[0] * distCost}, accCost: {weight[1] * accCost}, velCost: {weight[2] * velCost}")
     # ...distCost: 55.259173514720516, accCost: 2.9334241439482665e-20, velCost: 6.145710074179078e-08
-    # return distCost
-    return cost # The action sequence cost
+    return distCost
+    # return cost # The action sequence cost
 
 """
 Calculates the cost of an action sequence for the A1 robot.
@@ -258,12 +269,23 @@ Moves the robots to their starting position.
 """
 def moveToStartingPose(uid, jointIds):
     if args.robot == 'ur5':
-        if args.verbose: print(f"\nmoving UR5 to starting pose...\n")
+        # if args.verbose: print(f"\nmoving UR5 to starting pose...\n")
+        # for _ in range(350):
+        #     applyAction(uid, jointIds, [-180,-180,0,0,0,0,0,0])
+        # for _ in range(100):
+        #     p.stepSimulation()
+        # if args.verbose: print(f"...UR5 moved to starting pose\n")
+        
+        action = [-180,-180,0,0,0,0,0,0]
         for _ in range(350):
-            applyAction(uid, jointIds, [-180,-180,0,0,0,0,0,0])
-        for _ in range(100):
-            p.stepSimulation()
-        if args.verbose: print(f"...UR5 moved to starting pose\n")
+            p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=action)
+            if args.verbose: print(f"action applied: \n{action}")
+            for _ in range(SIM_STEPS):
+                p.stepSimulation()
+
+        # while 1:
+        #     p.stepSimulation()
+        pass
         
     else:
         if args.verbose: print(f"\nwaiting for A1 to settle...\n")
@@ -284,14 +306,14 @@ def main():
     if args.verbose: print(f"args: {args}")
     loadEnv()
 
-    uid = jointsForceRange = None
+    uid = jointsForceRange = jointsRange= None
     traj = N = G = H = T = K = ACTIVE_JOINTS = goal = H_exec = None
 
     # Setting up robot specific constants.
     if args.robot == 'ur5':
         # Setting up trajectory for UR5.
-        # resolution = 0.01
         resolution = 0.1
+        resolution = 0.01
         trajX = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.cos(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         trajY = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.sin(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         trajZ = [5 for z in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
@@ -305,14 +327,17 @@ def main():
         N = len(traj)                               # Number of environmental steps.
         # N = 20
         G = 220                                     # Number of plans.
+        G = 40
         H = 5
         # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))  # The horizon length.
         # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
         H_exec = 3
         T = 120                                      # Times to update mean and standard deviation for the distribution.
+        T = 40
         K = int(0.4 * G)                            # Numbers of action sequences to keep.
         ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
         uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
+        jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
     else: 
         # Setting up goal coordinates for A1.
         N = 20
@@ -326,6 +351,7 @@ def main():
         goal = (100, 0, p.getLinkState(uid, 2)[0][2])
         if args.verbose: print(f"set A1's goal to: {goal}")
         ACTIVE_JOINTS = activeJoints
+        jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
     print(f"\nN = {N}, G = {G}, H = {H}, H_exec = {H_exec}, T = {T}, K = {K}")
     if args.verbose: print(f"ACTIVE_JOINTS: {ACTIVE_JOINTS}")
 
@@ -350,9 +376,10 @@ def main():
                 else:
                     futureStates.append(traj[envStep + h])
 
-        mu = torch.zeros(H, len(jointsForceRange)).flatten()
+        mu = torch.zeros(H, len(jointsRange)).flatten()
         if args.robot == 'ur5':
-            sigma = (np.pi * 100) * torch.eye(len(mu))
+            # sigma = (np.pi * 100) * torch.eye(len(mu))
+            sigma = (np.pi) * torch.eye(len(mu))
             # sigma = 2e5 * torch.eye(len(mu))
         else: 
             sigma = (np.pi * 1e06) * torch.eye(len(mu))
@@ -363,7 +390,7 @@ def main():
 
         # ___LINE 1___
         # Generates G action sequences of horizon length H.
-        actionSeqSet = genActionSeqSetFromNormalDist(mu, sigma, G, H, jointsForceRange)
+        actionSeqSet = genActionSeqSetFromNormalDist(mu, sigma, G, H, jointsRange)
 
         # ___LINE 2___
         # Get robot's current state (not needed right now).
@@ -412,7 +439,7 @@ def main():
 
             # ___LINE 8___
             # Replace bottom G-K sequences with better action sequences.
-            replacementSet = genActionSeqSetFromNormalDist(mu, sigma, G-K, H, jointsForceRange)
+            replacementSet = genActionSeqSetFromNormalDist(mu, sigma, G-K, H, jointsRange)
             actionSeqSet = torch.cat((eliteActionSeqSet, replacementSet))
 
         # ___LINE 9___
