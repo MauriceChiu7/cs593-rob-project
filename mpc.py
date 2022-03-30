@@ -313,7 +313,7 @@ def main():
     if args.robot == 'ur5':
         # Setting up trajectory for UR5.
         resolution = 0.1
-        resolution = 0.01
+        resolution = 0.05
         trajX = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.cos(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         trajY = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.sin(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         trajZ = [5 for z in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
@@ -341,11 +341,14 @@ def main():
     else: 
         # Setting up goal coordinates for A1.
         N = 20
+        N = 100
         G = 220
+        G = 40
         H = 5
         # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))
         # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
         T = 120
+        T = 40
         K = int(0.4 * G)
         uid, jointsForceRange, activeJoints = loadA1()
         goal = (100, 0, p.getLinkState(uid, 2)[0][2])
@@ -358,8 +361,6 @@ def main():
     moveToStartingPose(uid, ACTIVE_JOINTS)
     # while 1:
     #     p.stepSimulation()
-
-    
 
     # ___LINE 0___
     finalActions = []
@@ -382,7 +383,8 @@ def main():
             sigma = (np.pi) * torch.eye(len(mu))
             # sigma = 2e5 * torch.eye(len(mu))
         else: 
-            sigma = (np.pi * 1e06) * torch.eye(len(mu))
+            # sigma = (np.pi * 1e06) * torch.eye(len(mu))
+            sigma = (np.pi) * torch.eye(len(mu))
         if args.verbose: print(f"initial mu:\n{mu}")
         if args.verbose: print(f"initial mu.size():\n{mu.size()}")
         if args.verbose: print(f"initial sigma:\n{sigma}")
