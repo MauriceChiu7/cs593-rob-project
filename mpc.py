@@ -170,7 +170,7 @@ def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests, stateId):
 Calculates the cost of an action sequence for the A1 robot.
 """
 def a1_actionSeqCost(uid, jointIds, actionSeq, H, goal):
-    weights = [1, 100]
+    weights = [2, 50]
     # Reshape action sequence to array of arrays (originally just a single array)
     actionSeq = actionSeq.reshape(H, -1)
     # Initialize cost
@@ -216,7 +216,7 @@ Loads the UR5 robot.
 """
 def loadUR5(activeJoints):
     if args.verbose: print(f"\nloading UR5...\n")
-    p.resetDebugVisualizerCamera( cameraDistance=1.8, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
+    p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
     path = f"{os.getcwd()}/ur5pybullet"
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
@@ -238,6 +238,7 @@ Loads the A1 robot.
 """
 def loadA1():
     if args.verbose: print(f"\nloading A1...\n")
+    p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
     path = f"{os.getcwd()}/unitree_pybullet"
     os.chdir(path) # Needed to change directory to load the A1.
     quadruped = p.loadURDF("./data/a1/urdf/a1.urdf",[0,0,0.48], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
@@ -349,12 +350,12 @@ def main():
         N = 20
         N = 100
         G = 220
-        G = 40
-        H = 10
+        G = 80
+        H = 20
         # H = int(np.ceil(CTL_FREQ * LOOKAHEAD_T))
         # H_exec = int(np.ceil(CTL_FREQ * EXEC_T))
         T = 120
-        T = 40
+        T = 80
         K = int(0.4 * G)
         uid, jointsForceRange, activeJoints = loadA1()
         goal = (100, 0, p.getLinkState(uid, 2)[0][2])
