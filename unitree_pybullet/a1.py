@@ -1,10 +1,10 @@
-from ast import Pass
 import pybullet as p
 import torch
 import time
 import numpy as np
 import math
 import pickle
+import os
 
 robotHeight = 0.420393
 
@@ -82,7 +82,21 @@ def getState(quadruped):
     distance = math.dist(pos, goalPoint)**2
     heightErr = abs(robotHeight - pos[2])
     state = torch.Tensor([pitchR, pitchL, rollF, rollR, yawR, yawL, distance, heightErr])
-    return state 
+    return state
+
+
+def getFinalState(quadruped):
+    state = []
+    # [FR, FL, RR, RL]
+    hipIds = [2,6,10,14]
+    for id in hipIds:
+        state.extend(p.getLinkState(quadruped, id)[0])
+    
+    # Get body
+    state.extend(p.getLinkState(quadruped, 0)[0])
+
+    return state
+
 
 def getReward(action, jointIds, quadruped):
     # print(action)
@@ -129,8 +143,8 @@ def getEpsReward(eps, jointIds, quadruped, Horizon):
 
 maxForceId, quadruped, jointIds = loadDog()
 
-Iterations = 200
-Epochs = 4
+Iterations = 100
+Epochs = 1
 Episodes = 30
 Horizon = 100
 TopKEps = int(0.3*Episodes)
@@ -146,6 +160,7 @@ jointMaxes = torch.Tensor(jointMaxes)
 for _ in range(100):
     p.stepSimulation()
 
+saveRun = []    # Store for training
 saveAction = []
 error = []
 for iter in range(Iterations):
@@ -197,16 +212,38 @@ for iter in range(Iterations):
     # with open(f"results/{Epochs}graph.pkl", 'wb') as f:
     #     pickle.dump(error, f)
     # exit()
+
+    # Save best action
     bestAction = epsMem[0][0][0:numJoints]
     saveAction.append(bestAction)
+
+    # Need to store this for training
+    pairs = []
+    pairs.extend(getFinalState(quadruped))
+    pairs.extend(bestAction)
+
+    # Apply action
     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, bestAction)
     p.stepSimulation()
-# saveAction.extend(epsMem[0][0])
-    
 
-print("DONE!!!!!")
-with open(f"results/run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
-    pickle.dump(saveAction, f)
+    # After applying action, append state2
+    pairs.extend(getFinalState(quadruped))
+    saveRun.append(pairs)
+
+
+trainingFolder = "./trainingData/"
+if not os.path.exists(trainingFolder):
+    # create directory if not exist
+    os.makedirs(trainingFolder)
+
+with open(trainingFolder + "sample.pkl", 'wb') as f:
+    pickle.dump(saveRun, f)
+
+
+
+# print("DONE!!!!!")
+# with open(f"results/run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
+#     pickle.dump(saveAction, f)
             
         
         
