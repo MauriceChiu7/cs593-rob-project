@@ -1,337 +1,235 @@
-import argparse
+from ast import Pass
 import pybullet as p
-import os
-import pybullet_data
-import numpy as np
 import torch
-import csv
-import math
 import time
+import numpy as np
+import math
+import pickle
 
-maxForceId = 0
+robotHeight = 0.420393
 
-def diff(v1, v2):
-    return [x1 - x2 for x1, x2 in zip(v1, v2)]
+def loadDog():
+    # class Dog:
+    p.connect(p.DIRECT)
+    plane = p.loadURDF("plane.urdf")
+    p.setGravity(0,0,-9.8)
+    p.setTimeStep(1./50)
+    #p.setDefaultContactERP(0)
+    #urdfFlags = p.URDF_USE_SELF_COLLISION+p.URDF_USE_SELF_COLLISION_EXCLUDE_ALL_PARENTS
+    urdfFlags = p.URDF_USE_SELF_COLLISION
+    quadruped = p.loadURDF("a1/urdf/a1.urdf",[0,0,0.48],[0,0,0,1], flags = urdfFlags,useFixedBase=False)
 
-def magnitude(v):
-    return math.sqrt(sum([x*x for x in v]))
-
-# L2 Norm between 2 Vectors
-def dist(p1, p2):
-    return magnitude(diff(p1, p2))
-
-def normalize(vector):
-    normalized = vector/np.linalg.norm(vector)
-    return normalized
-
-# Returns the joint force range corresponding to each inputted jointID
-def getJointForceRange(uid, jointIds):
-    forces = getJointsMaxForce(uid, jointIds)
-    jointsForceRange = []
-    for f in forces:
-        mins = -f
-        maxs = f
-        jointsForceRange.append((mins, maxs))
-    return jointsForceRange
-
-# creates initial distribution with mu of 0's and covariance that is the identity matrix
-def initialDist(uid, jointIds, G, H):
-    mu = torch.zeros(H, len(jointIds)).flatten()
-    sigma = np.pi * torch.eye(len(mu))
-    return (mu, sigma)
-
-def refineDist(mu, sigma):
-    # print(mu)
-    mu = mu[12:]
-    zeroes = torch.zeros(12)
-    mu = torch.cat([mu,zeroes])
-    # print(mu)
-    temp_sig = np.pi * torch.eye(len(mu))
-    for i in range(len(temp_sig)-1):
-        for j in range(len(temp_sig[0])-1):
-            temp_sig[i][j] = sigma[i+1][j+1]
-
-    return mu,temp_sig
-
-def loadA1(train):
-    # only render when doing playback, not when training!
-    if train:
-        p.connect(p.DIRECT)
-    else:
-        p.connect(p.GUI)
-    p.setAdditionalSearchPath(pybullet_data.getDataPath())
-    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), 0, 0, 0)
-    p.setGravity(0, 0, -9.8)
-    p.setTimeStep(1./100)
-    urdfFlags = p.URDF_USE_INERTIA_FROM_FILE
-    quadruped = p.loadURDF("data/a1/urdf/a1.urdf",[0,0,0.48], p.getQuaternionFromEuler([0,0,0]), flags=urdfFlags)
     #enable collision between lower legs
+    # for j in range (p.getNumJoints(quadruped)):
+            # print(p.getJointInfo(quadruped,j))
+
     lower_legs = [2,5,8,11]
     for l0 in lower_legs:
         for l1 in lower_legs:
             if (l1>l0):
                 enableCollision = 1
-                p.setCollisionFilterPair(quadruped, quadruped, 2, 5, enableCollision)
+                # print("collision for pair",l0,l1, p.getJointInfo(quadruped,l0)[12],p.getJointInfo(quadruped,l1)[12], "enabled=",enableCollision)
+                p.setCollisionFilterPair(quadruped, quadruped, 2,5,enableCollision)
+
     jointIds=[]
-    maxForceId = p.addUserDebugParameter("maxForce",0,500,20)
-    # Set resistance to none
-    for j in range(p.getNumJoints(quadruped)):
-        p.changeDynamics(quadruped, j, linearDamping=0, angularDamping=0)
+    paramIds=[]
+
+    maxForceId = p.addUserDebugParameter("maxForce",0,100,20)
+
+    for j in range (p.getNumJoints(quadruped)):
+        p.changeDynamics(quadruped,j,linearDamping=0, angularDamping=0)
         info = p.getJointInfo(quadruped,j)
+        # print(info)
         jointName = info[1]
         jointType = info[2]
         if (jointType==p.JOINT_PRISMATIC or jointType==p.JOINT_REVOLUTE):
             jointIds.append(j)
-    # Adding extra lateral friction to the feet
-    foot_fixed = [5, 9, 13, 17] # 5: FntRgt, 9: FntLft, 13: RarRgt, 17: RarLft
-    for foot in foot_fixed:
-        p.changeDynamics(quadruped, foot, lateralFriction=1)
-    
-    return urdfFlags, quadruped
 
-"""For Milestone 1."""
-def getEnvInfo(quadruped):
-    initPosition, initOrientation = p.getBasePositionAndOrientation(quadruped)
-    envInfo = {
-        'position': initPosition, 
-        'orientation': initOrientation
-    }
-    return envInfo
+    # print(jointIds)
 
-"""For Milestone 1."""
-def getRobotInfo(quadruped):
-    numJoints = p.getNumJoints(quadruped)
-    jointInfo = {}
-    jointStates = {}
-    for j in range(numJoints):
-        jointInfo[j] = p.getJointInfo(quadruped, j)
-        jointStates[j] = p.getJointState(quadruped, j)    # jointPosition, jointVelocity, jointReactionForces, appliedJointMotorTorque
-    return jointInfo, jointStates
-
-"""Gets the maxForce that should be applied to each joint."""
-def getJointsMaxForce(uid, jointIds):
-    jointsMaxForces = []
-    for j in jointIds:
-        jointInfo = p.getJointInfo(uid, j)
-        jointsMaxForces.append(jointInfo[10])
-    return jointsMaxForces
-
-"""Apply a random action to the all the links/joints of the hip."""
-def applyAction(quadruped, jointIds, action):
-    # action = torch.mul(action, 100)
-    p.setJointMotorControlArray(quadruped, jointIds, p.TORQUE_CONTROL, forces=action)
-    for _ in range(10):
-        p.stepSimulation()
-
-def applyActionPB(quadruped, jointIds, action):
-    # action = torch.mul(torch.tensor(action), 100)
-    p.setJointMotorControlArray(quadruped, jointIds, p.TORQUE_CONTROL, forces=action)
-    # p.setJointMotorControlArray(quadruped, knee_front_leftL_link, p.VELOCITY_CONTROL, 0,
-    #                      kneeFrictionForce)
-    for _ in range(10):
-        p.stepSimulation()
-
-"""Applies an action to each joint, then returns the position of the floating base."""
-def getState(quadruped, jointIds, action):
-    applyAction(quadruped, jointIds, action)
-    floating_base_pos = p.getLinkState(quadruped, 0)[0] # a1's floating base center of mass position
-    return floating_base_pos
-
-"""Calculates the total cost of each path/plan."""
-def getPathCost(quadruped, jointIds, actionSeq, H, Goal):
-    weights = [20,5,10]
-    z_init = 0.480031
-    # Reshape action sequence to array of arrays (originally just a single array)
-    actionSeq = actionSeq.reshape(H, -1)
-
-    # Initialize cost
-    cost = 0
-    # Loop through each action of the plan and add cost
-    for h in range(H):
-        currAction = actionSeq[h]
-        state = getState(quadruped, jointIds, currAction)
-        distCost = weights[0] * dist(state, Goal) # distance from goal
-        actionCost = weights[1] * magnitude(actionSeq[h]) # gets the magnitude of actions (shouldn't apply huge actions)
-        zCost = weights[2] * abs(state[2]-z_init)
-        cost += distCost   
-        cost += actionCost
-        cost += zCost
-        # print(f"dist cost: {distCost}, action cost: {actionCost}")
-    return cost
-
-"""Samples random points from normal distribution."""
-def sampleNormDistr(jointsRange, mu, sigma, G, H):
-    mins, maxes = np.array(jointsRange).T
-    actionSeqSet = [] # action sequence set that contains g sequences
-    for g in range(G):
-        samp = np.random.multivariate_normal(mu.numpy(), sigma.numpy()).reshape(H, len(mins))
-        # samp = np.clip(samp, mins*1000, maxes*1000)
-        actionSeqSet.append(torch.tensor(samp.reshape(-1)))
-    return torch.stack(actionSeqSet)
-
-
-def train():
-    train = True
-    urdfFlags, quadruped = loadA1(train)
-    finalActions = []
-    jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
-    jointsRange = getJointForceRange(quadruped, jointIds)
-
-    ####### Milestone 2 ######
-
-    # Initial Variables
-    N = args.N              # How many iterations we're running the training for
-    T = args.T              # Number of training iteration
-    G = args.G              # G is the number of paths generated (with the best 1 being picked)
-    H = 12                  # Number of states to predict per path (prediction horizon)
-    K = int(0.3 * G)        # Choosing the top k paths to create new distribution
-    Goal = (100, 0, p.getLinkState(quadruped, 2)[0][2])
-    print("GOAL: ", Goal)
-
-    mu, sigma = initialDist(quadruped, jointIds, G, H)
-    count = 0   # debugging
-
-    # ________________LINE 0________________
-    for _ in range(N):
-        currentID = p.saveState() # Save the state before simulations. # Changed
-
-        # ________________LINE 1________________
-        # Sample G initial plans and generate all the random actions for each plan
-        plans = sampleNormDistr(jointsRange, mu, sigma, G, H)
-
-        # ________________LINE 2________________
-        # Use floating base center of mass initial state position for now to compare
-
-        # ________________LINE 3________________
-        for _ in range(T):
-            # ________________LINE 4b and 5________________
-            # Get sequence states from sampled sequence of actions
-            # Get cost of each path (sequence of states)
-            actionSetCosts = []
-            for plan in plans:
-                # Restore back to original state to run the plan again
-                p.restoreState(currentID)
-                # getPathCost - applies action, gets that state, returns path cost
-                cost = getPathCost(quadruped, jointIds, plan, H, Goal)
-                actionSetCosts.append((plan, cost))
-
-            # ________________LINE 6________________
-            # Sort the sequence of actions based on their cost
-            sortedList = sorted(actionSetCosts, key = lambda x: x[1])
-            
-            # ________________LINE 7________________
-            # Update normal distribution to fit top k action sequences
-            # Each entry is all of one action, i.e. a_0
-            sep_actions = []
-            for j in range(K):
-                sep_actions.append(sortedList[j][0])
-            sep_actions = torch.stack(sep_actions)
-
-            # Get the mean and std dev. of each action a_i
-            mu = torch.mean(sep_actions, dim=0)
-            sigma = torch.cov(sep_actions.T)
-            print("mu: ", mu)
-            print("sigma: ", sigma)
-            exit()
-            sigma += .03 * torch.eye(len(mu))   # add a small amount of noise to the diagonal to replan to next target
-
-            # ________________LINE 8________________
-            # Replace bottom G-K action sequences with samples from refined distribution above
-            refined_actions = sampleNormDistr(jointsRange, mu, sigma, G-K, H)
-            actionSeqSet = torch.cat((sep_actions, refined_actions))
-            plans = actionSeqSet
-
-        # ________________LINE 9________________
-        # Execute first action from tvfhe "best" model in the action sorted action sequences 
-        bestAction = actionSeqSet[0][:len(jointIds)]    
-        p.restoreState(currentID)   # Before applying action, restore state to previous
-        applyAction(quadruped, jointIds, bestAction)
-        finalActions.append(bestAction.tolist())    # Keep track of all actions
-
-        # mu,sigma = refineDist(mu,sigma)
-        # mu,sigma = initialDist(quadruped, jointIds, G, H)
-
-        print("Env_step: ", count)
-        # print("THIS IS MU: ", mu)
-        # print("THIS IS SIGMA: ", sigma)
-        count += 1
-
-    # Write to actions
-    if not os.path.exists(args.dir):
-        os.makedirs(args.dir)
-    
-    filename = args.dir + "results_G" + str(args.G) + "_T" + str(args.T) + "_N" + str(args.N)
-    # Writing to csv file
-    with open(filename, 'w') as csvfile:
-        csvwriter = csv.writer(csvfile, lineterminator = '\n')
-        csvwriter.writerows(finalActions)
-    print("Done Training")
-
-
-def playback():
-    if args.f != 'NA':
-        filename = args.dir + args.f
-    else:
-        filename = args.dir + "results_G" + str(args.G) + "_T" + str(args.T) + "_N" + str(args.N)
-    f = open(filename)
-    csvreader = csv.reader(f, quoting=csv.QUOTE_NONNUMERIC)
-    finalActions = []
-    for row in csvreader:
-        finalActions.append(row)
-    # print(finalActions)
-    f.close()
-
-    flag, quadruped = loadA1(False)
-    for _ in range(100):
-        p.stepSimulation()
-
+    p.getCameraImage(480,320)
     p.setRealTimeSimulation(0)
-    p.setTimeStep(1./100)
 
-    jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
+    joints=[]
+    return maxForceId, quadruped, jointIds
 
-    for env_step in range(len(finalActions)):
-        # a1Pos = p.getLinkState(quadruped, 0)[0]
-        # p.resetDebugVisualizerCamera( cameraDistance=2, cameraYaw=0, cameraPitch=-20, cameraTargetPosition=a1Pos)
-        applyActionPB(quadruped, jointIds, finalActions[env_step])
-        # time.sleep(1./125.)
-        time.sleep(.5)
+def getLimitPos(jointIds, quadruped):
+    mins = []
+    maxes = []
+    for id in jointIds:
+        info = p.getJointInfo(quadruped, id)
+        mins.append(info[8])
+        maxes.append(info[9])
+    return mins, maxes
 
-def test():
-    flag, quadruped = loadA1(False)
-    jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
-    # stuff = getJointForceRange(quadruped, jointIds)
-    # print("THESE ARE THE FORCE RANGES: ", stuff)
-    for _ in range(100):
-        p.stepSimulation()
+def getState(quadruped):
+    # ideal height for dog to maintain
+    global robotHeight
+    hips = []
+    # goal point for dog to reach
+    goalPoint = [10,0, robotHeight]    
+    # [FR, FL, RR, RL]
+    hipIds = [2,6,10,14]
+    for id in hipIds:
+        hips.append(p.getLinkState(quadruped, id)[0])
+    pitchR = abs(hips[0][2] - hips[2][2])
+    pitchL = abs(hips[1][2] - hips[3][2])
+    rollF = abs(hips[0][2] - hips[1][2])
+    rollR = abs(hips[2][2] - hips[3][2])
+    yawR = abs(hips[0][1] - hips[2][1])
+    yawL = abs(hips[1][1] - hips[3][1])
+    pos = (p.getLinkState(quadruped, 0)[0])
+    distance = math.dist(pos, goalPoint)**2
+    heightErr = abs(robotHeight - pos[2])
+    state = torch.Tensor([pitchR, pitchL, rollF, rollR, yawR, yawL, distance, heightErr])
+    return state 
 
-    p.setRealTimeSimulation(0)
-    p.setTimeStep(1./100)
+def getReward(action, jointIds, quadruped):
+    # print(action)
+    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
+    p.stepSimulation()
+    state = getState(quadruped)
+    w = torch.Tensor([2000,2000,300,300,300,300,2,3000])
+    reward = (w*state).sum().numpy()
+    if state[-1] > 0.25:
+        reward += 1000
+    return reward
 
+def getEpsReward(eps, jointIds, quadruped, Horizon):
+    numJoints = len(jointIds)
+    reward = 0
+    for h in range(Horizon):
+        start = h*numJoints
+        end = start + numJoints
+        action = eps[start:end]
+        reward += getReward(action, jointIds, quadruped)
 
-
-
-    for _ in range(50):
-        applyActionPB(quadruped, jointIds, [3,0,0,0,0,0,0,0,0,0,0,0])
-    while(1):
-        applyActionPB(quadruped, jointIds, [0,0,-.1,0,0,0,0,0,0,0,0,0])
+        if h == (Horizon-1):
+            futureS = start
+            futureE = end
+            endDist = getState(quadruped).tolist()[6]
+        else:
+            futureS = end
+            futureE = end + numJoints
         
+        actionMag = 8 * math.dist(eps[futureS:futureE], action)
+        reward += actionMag
+
+        if h == 2:
+            startDist = getState(quadruped).tolist()[6]
+            
+        # print(h)
+        # time.sleep(0.2)
+    
+    if startDist < endDist:
+        # print(f"START: {startDist}")
+        # print(f"END: {endDist}")
+        reward += 10000
+    return reward
+
+maxForceId, quadruped, jointIds = loadDog()
+
+Iterations = 200
+Epochs = 4
+Episodes = 30
+Horizon = 100
+TopKEps = int(0.3*Episodes)
+numJoints = len(jointIds)
+jointMins,jointMaxes = getLimitPos(jointIds, quadruped)
+jointMins = jointMins*Horizon
+jointMaxes = jointMaxes*Horizon
+jointMins = torch.Tensor(jointMins)
+jointMaxes = torch.Tensor(jointMaxes)
+
+# THIS IS TO MAKE THE ROBOT DROP FIRST
+
+for _ in range(100):
+    p.stepSimulation()
+
+saveAction = []
+error = []
+for iter in range(Iterations):
+    print(f"Running Iteration {iter} ...")
+    mu = torch.Tensor([0]*(numJoints * Horizon))
+    cov = torch.eye(len(mu)) * ((np.pi/2) ** 2)
+    # this is what we should be resetting to
+    startState = p.saveState()
+    # number of episodes to sample
+    currEpsNum = Episodes
+    # This is the "memory bank" of episodes we are going to use
+    epsMem = []
+    for e in range(Epochs): 
+        print(f"Epoch {e}")     
+        # initialize multivariate distribution
+        distr = torch.distributions.MultivariateNormal(mu, cov)
+        # Now we get the episodes
+        for eps in range(currEpsNum):
+            # reset environment to start state
+            p.restoreState(startState)
+            # generate episode
+            episode = distr.sample()
+            # make sure it's valid by clamping with the mins and maxes
+            episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
+            # get cost of episode
+            cost = getEpsReward(episode, jointIds, quadruped, Horizon)
+            # store the episode, along with the cost, in episode memory
+            epsMem.append((episode,cost))
+        p.restoreState(startState)
+        # Sort the episode memory
+        epsMem = sorted(epsMem, key = lambda x: x[1])
+        # print(f"TOP {epsMem[0][1]}")
+        # print(f"BOTTOM {epsMem[len(epsMem) -1][1]}")
+        # error.append(epsMem[0][1])
+        # Now get the top K episodes 
+        epsMem = epsMem[0:TopKEps]
+        # Now just get a list of episodes from these (episode,cost) pairs
+        topK = [x[0] for x in epsMem]
+        topK = torch.Tensor(topK)
+        # Now grab the means and covariances of these top K 
+        mu = torch.mean(topK, axis = 0)
+        std = torch.std(topK, axis = 0)
+        var = torch.square(std)
+        noise = torch.Tensor([0.2]*Horizon*numJoints)
+        var = var + noise
+        cov = torch.Tensor(np.diag(var))
+        currEpsNum = Episodes - TopKEps
+    
+    # with open(f"results/{Epochs}graph.pkl", 'wb') as f:
+    #     pickle.dump(error, f)
+    # exit()
+    bestAction = epsMem[0][0][0:numJoints]
+    saveAction.append(bestAction)
+    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, bestAction)
+    p.stepSimulation()
+# saveAction.extend(epsMem[0][0])
+    
+
+print("DONE!!!!!")
+with open(f"results/run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
+    pickle.dump(saveAction, f)
+            
+        
+        
+            
+            
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='CS 593-ROB - Project Milestone 2')
-    parser.add_argument('-dir', type=str, default='./results/',help='folder to read data from')
-    parser.add_argument('-G', type=int, default=150,help='Num plans')
-    parser.add_argument('-T', type=int, default=5,help='Training Iterations for 1 action')
-    parser.add_argument('-N', type=int, default=150,help='Num Env Steps')
-    parser.add_argument('-f', type=str, default='NA', help='Specific filename for playback')
-    parser.add_argument('-p', '--play', action='store_true', help='Set true to playback the recorded best actions.')
-    parser.add_argument('-t', '--test', action='store_true', help='Set true to test stuff.')
-    args = parser.parse_args()
-       
-    if args.play:
-        playback()
-    elif args.test:
-        test()
-    else: 
-        train()
+# while(1):
+#     with open("mocap.txt","r") as filestream:
+#         for line in filestream:
+#             maxForce = p.readUserDebugParameter(maxForceId)
+#             currentline = line.split(",")
+#             frame = currentline[0]
+#             t = currentline[1]
+#             joints=currentline[2:14]
+#             for j in range (12):
+#                 targetPos = float(joints[j])
+#                 p.setJointMotorControl2(quadruped, jointIds[j], p.POSITION_CONTROL, targetPos, force=maxForce)
+
+#             p.stepSimulation()
+#             time.sleep(1./500.)
+
+# FOR TESTING THE REWARD FUNCTION:
+# testAction = [0.037199,0.660252,-1.200187,-0.028954,0.618814,-1.183148,0.048225,0.690008,-1.254787,-0.050525,0.661355,-1.243304]
+# getReward(testAction, jointIds, quadruped)
+# exit()
