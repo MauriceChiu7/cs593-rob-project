@@ -24,6 +24,7 @@ class NeuralNetwork(nn.Module):
         return x
 
 
+# TODO: normalize inputs and outputs
 def train(args):
     # Open pkl file
     trainingFolder = args.folder
@@ -31,9 +32,9 @@ def train(args):
     allData = []
 
     # Read through training directory
-    path, dirs, files = next(os.walk(args.folder))
-    for x in range(4):
-        fname = "sample{}.pkl".format(x)
+    path, dirs, files = next(os.walk(trainingFolder))
+    for x in range(len(files)):
+        fname = "sample_{}.pkl".format(x)
         currName = trainingFolder + fname
 
         with open(currName, 'rb') as f:
