@@ -9,8 +9,6 @@ import math
 import time
 import copy
 
-maxForceId = 0
-
 def diff(v1, v2):
     return [x1 - x2 for x1, x2 in zip(v1, v2)]
 
@@ -21,27 +19,13 @@ def magnitude(v):
 def dist(p1, p2):
     return magnitude(diff(p1, p2))
 
-def normalize(vector):
-    normalized = vector/np.linalg.norm(vector)
-    return normalized
-
-# Returns the joint force range corresponding to each inputted jointID
-def getJointForceRange(uid, jointIds):
-    # forces = getJointsMaxForce(uid, jointIds)
-    # jointsForceRange = []
-    # for f in forces:
-    #     mins = -f
-    #     maxs = f
-    #     jointsForceRange.append((mins, maxs))
-    jointsForceRange = [(-2, 2)] * 12   # put a limit to how much each foot moves
-    return jointsForceRange
-
 # creates initial distribution with mu of 0's and covariance that is the identity matrix
-def initialDist(uid, jointIds, G, H):
+def initialDist(jointIds, H):
     mu = torch.zeros(H, len(jointIds)).flatten()
     sigma = np.pi * torch.eye(len(mu))
     return (mu, sigma)
 
+# refine distribution by setting 2nd action for mu
 def refineDist(mu, sigma):
     # Append first set of mu to the end of the list
     saveMu = mu[:12]
@@ -51,23 +35,18 @@ def refineDist(mu, sigma):
     # Create new sigma list
     temp_sig = copy.deepcopy(sigma)
     # Append first sigma to the end of the set
-    print(sigma[0][0])
     temp_sig[-1][-1] = sigma[0][0]
 
     # Update top left corner
     for i in range(len(sigma) - 1):
         for j in range(len(sigma[0]) - 1):
             temp_sig[i][j] = sigma[i+1][j+1]
-
     # Update sigma last col
     for i in range(len(sigma) - 1):
         temp_sig[i][-1] = sigma[i+1][0]
     # Update sigma last row
     for j in range(len(sigma[0]) - 1):
         temp_sig[-1][j] = sigma[0][j+1]
-
-    # print(mu)
-    # print(temp_sig)
 
     return mu, temp_sig
 
@@ -80,7 +59,9 @@ def loadA1(train):
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), 0, 0, 0)
     p.setGravity(0, 0, -9.8)
+    p.setRealTimeSimulation(0)
     p.setTimeStep(1./100)
+    # p.setTimeStep(0.2)
     urdfFlags = p.URDF_USE_INERTIA_FROM_FILE
     quadruped = p.loadURDF("data/a1/urdf/a1.urdf",[0,0,0.48], p.getQuaternionFromEuler([0,0,0]), flags=urdfFlags)
     #enable collision between lower legs
@@ -91,7 +72,7 @@ def loadA1(train):
                 enableCollision = 1
                 p.setCollisionFilterPair(quadruped, quadruped, 2, 5, enableCollision)
     jointIds=[]
-    maxForceId = p.addUserDebugParameter("maxForce",0,500,20)
+
     # Set resistance to none
     for j in range(p.getNumJoints(quadruped)):
         p.changeDynamics(quadruped, j, linearDamping=0, angularDamping=0)
@@ -107,42 +88,8 @@ def loadA1(train):
     
     return urdfFlags, quadruped
 
-"""For Milestone 1."""
-def getEnvInfo(quadruped):
-    initPosition, initOrientation = p.getBasePositionAndOrientation(quadruped)
-    envInfo = {
-        'position': initPosition, 
-        'orientation': initOrientation
-    }
-    return envInfo
-
-"""For Milestone 1."""
-def getRobotInfo(quadruped):
-    numJoints = p.getNumJoints(quadruped)
-    jointInfo = {}
-    jointStates = {}
-    for j in range(numJoints):
-        jointInfo[j] = p.getJointInfo(quadruped, j)
-        jointStates[j] = p.getJointState(quadruped, j)    # jointPosition, jointVelocity, jointReactionForces, appliedJointMotorTorque
-    return jointInfo, jointStates
-
-"""Gets the maxForce that should be applied to each joint."""
-def getJointsMaxForce(uid, jointIds):
-    jointsMaxForces = []
-    for j in jointIds:
-        jointInfo = p.getJointInfo(uid, j)
-        jointsMaxForces.append(jointInfo[10])
-    return jointsMaxForces
-
 """Apply a random action to the all the links/joints of the hip."""
 def applyAction(quadruped, jointIds, action):
-    # action = torch.mul(action, 50)
-    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, targetPositions=action)
-    for _ in range(10):
-        p.stepSimulation()
-
-def applyActionPB(quadruped, jointIds, action):
-    # action = torch.mul(torch.Tensor(action), 50)
     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, targetPositions=action)
     for _ in range(10):
         p.stepSimulation()
@@ -173,6 +120,38 @@ def getIKsolver(quadruped, footIds, actionSeq):
     # exit()
     return torch.Tensor(fs)
 
+def getOtherCost(quadruped):
+    z_init = 0.480031    # Z-coord of hip joint at initial state
+    weight = [10, 10]
+
+    hip_s0 = []
+    hip_s0.append(p.getLinkState(quadruped, 2)[0])
+    hip_s0.append(p.getLinkState(quadruped, 6)[0])
+    hip_s0.append(p.getLinkState(quadruped, 10)[0])
+    hip_s0.append(p.getLinkState(quadruped, 14)[0])
+
+    # z_prev = (prevState[0][2] + prevState[1][2] + prevState[3][2] + prevState[4][2])/4 
+    z1 = hip_s0[0][2]
+    z2 = hip_s0[1][2]
+    z3 = hip_s0[2][2]
+    z4 = hip_s0[3][2]
+
+    #### Calculating Tilt of Floating Body
+    sums = 0
+    sums += abs(z1 - z2)
+    sums += abs(z1 - z3)
+    sums += abs(z1 - z4)
+    sums += abs(z2 - z3)
+    sums += abs(z2 - z4)
+    sums += abs(z3 - z4)
+    body_tilt = sums/6   # get average
+
+    #  Calculating how high in air
+    # Just want z-coordinate to stay same--not in air or crouching
+    avgZ = (z1+z2+z3+z4)/4
+    heightDiff = abs(avgZ - z_init)
+
+    return (heightDiff * weight[0]) + (body_tilt * weight[1])
 
 """Calculates the total cost of each path/plan."""
 def getPathCost(quadruped, footIds, jointIds, actionSeq, H, Goal):
@@ -194,6 +173,7 @@ def getPathCost(quadruped, footIds, jointIds, actionSeq, H, Goal):
         cost += distCost   
         cost += actionCost
         cost += zCost
+        cost += getOtherCost(quadruped)
         # print(f"dist cost: {distCost}, action cost: {actionCost}")
     return cost
 
@@ -214,7 +194,7 @@ def train():
     finalActions = []
     jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
     footIds = [5, 9, 13, 17]   # only feet
-    jointsRange = getJointForceRange(quadruped, jointIds)
+    jointsRange = [(-3, 3)] * 12
 
     ####### Milestone 2 ######
 
@@ -223,11 +203,11 @@ def train():
     T = args.T              # Number of training iteration
     G = args.G              # G is the number of paths generated (with the best 1 being picked)
     H = 10                  # Number of states to predict per path (prediction horizon)
-    K = int(0.3 * G)        # Choosing the top k paths to create new distribution
+    K = int(0.2 * G)        # Choosing the top k paths to create new distribution
     Goal = (100, 0, p.getLinkState(quadruped, 2)[0][2])
     print("\nGOAL: ", Goal)
 
-    mu, sigma = initialDist(quadruped, jointIds, G, H)
+    mu, sigma = initialDist(jointIds, H)
     count = 0   # debugging
 
     # ________________LINE 0________________
@@ -257,7 +237,6 @@ def train():
             # ________________LINE 6________________
             # Sort the sequence of actions based on their cost
             sortedList = sorted(actionSetCosts, key = lambda x: x[1])
-            # print(sortedList)
             
             # ________________LINE 7________________
             # Update normal distribution to fit top k action sequences
@@ -285,12 +264,11 @@ def train():
         applyAction(quadruped, jointIds, bestAction)
         finalActions.append(bestAction.tolist())    # Keep track of all actions
 
-        mu,sigma = refineDist(mu,sigma)
-        # mu,sigma = initialDist(quadruped, jointIds, G, H)
+        # mu, sigma = refineDist(mu,sigma)
+        mu, sigma = initialDist(jointIds, H)
 
         print("Env_step: ", count)
-        # print("THIS IS MU: ", mu)
-        # print("THIS IS SIGMA: ", sigma)
+
         count += 1
 
     # Write to actions
@@ -302,6 +280,7 @@ def train():
     with open(filename, 'w') as csvfile:
         csvwriter = csv.writer(csvfile, lineterminator = '\n')
         csvwriter.writerows(finalActions)
+
     print("Done Training")
 
 
@@ -322,37 +301,12 @@ def playback():
     for _ in range(100):
         p.stepSimulation()
 
-    p.setRealTimeSimulation(0)
-    p.setTimeStep(1./100)
-
     jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
 
     for env_step in range(len(finalActions)):
-        # a1Pos = p.getLinkState(quadruped, 0)[0]
-        # p.resetDebugVisualizerCamera( cameraDistance=2, cameraYaw=0, cameraPitch=-20, cameraTargetPosition=a1Pos)
-        applyActionPB(quadruped, jointIds, finalActions[env_step])
+        applyAction(quadruped, jointIds, finalActions[env_step])
         time.sleep(1./3.)
         # time.sleep(.5)
-
-def test():
-    flag, quadruped = loadA1(False)
-    jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]   # all joints excluding foot, body, imu_joint
-    # stuff = getJointForceRange(quadruped, jointIds)
-    # print("THESE ARE THE FORCE RANGES: ", stuff)
-    for _ in range(100):
-        p.stepSimulation()
-
-    p.setRealTimeSimulation(0)
-    p.setTimeStep(1./100)
-
-
-
-
-    for _ in range(50):
-        applyActionPB(quadruped, jointIds, [3,0,0,0,0,0,0,0,0,0,0,0])
-    while(1):
-        applyActionPB(quadruped, jointIds, [0,0,-.1,0,0,0,0,0,0,0,0,0])
-        
 
 
 if __name__ == '__main__':
