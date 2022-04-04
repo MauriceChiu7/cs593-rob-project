@@ -80,6 +80,7 @@ def loadA1():
     path = f"{os.getcwd()}/unitree_pybullet"
     os.chdir(path) # Needed to change directory to load the A1.
     quadruped = p.loadURDF("./data/a1/urdf/a1.urdf",[0,0,0.48], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
+    # quadruped = p.loadURDF("./data/a1/urdf/a1.urdf", [0,0,0.48], p.getQuaternionFromEuler([0,0,np.pi*2]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
     path = f"{os.getcwd()}/.."
     os.chdir(path) # Back to parent directory.
     # Enable collision between lower legs.
