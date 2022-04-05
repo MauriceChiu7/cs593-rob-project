@@ -10,8 +10,8 @@ robotHeight = 0.420393
 
 def loadDog(pos, yaw):
     # class Dog:
-    # p.connect(p.DIRECT)
-    p.connect(p.GUI)
+    p.connect(p.DIRECT)
+    # p.connect(p.GUI)
     plane = p.loadURDF("plane.urdf")
     p.setGravity(0,0,-9.8)
     p.setTimeStep(1./50)
@@ -159,14 +159,15 @@ def main(rollout_index):
 
     maxForceId, quadruped, jointIds = loadDog(pos, yaw)
 
-    # Iterations = 300
-    # Epochs = 20
-    # Episodes = 150
-    # Horizon = 100
-    Iterations = 2 # N env steps
-    Epochs = 20 # T
-    Episodes = 10 # G
-    Horizon = 10 # H
+    Iterations = 300
+    Epochs = 20
+    Episodes = 150
+    Horizon = 100
+    # Iterations = 2 # N env steps
+    # Epochs = 20 # T
+    # Episodes = 10 # G
+    # Horizon = 10 # H
+
     TopKEps = int(0.3*Episodes)
     numJoints = len(jointIds)
     jointMins,jointMaxes = getLimitPos(jointIds, quadruped)
@@ -260,7 +261,8 @@ def main(rollout_index):
         pickle.dump(saveRun, f)
 
 if __name__ == '__main__':
-    for i in range(1):
+    # for i in range(0, 1):
+    for i in range(0, 700):
         main(i)
 
 # print("DONE!!!!!")
