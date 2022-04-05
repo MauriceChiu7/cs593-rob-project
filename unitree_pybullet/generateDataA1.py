@@ -160,9 +160,13 @@ def main(rollout_index):
     maxForceId, quadruped, jointIds = loadDog(pos, yaw)
 
     Iterations = 300
-    Epochs = 20
-    Episodes = 150
-    Horizon = 100
+    Epochs = 10
+    Episodes = 100
+    Horizon = 50
+
+    print(f"\nIterations: {Iterations}, Epochs: {Epochs}, Episodes: {Episodes}, Horizon: {Horizon}\n")
+    trainingFolder = f"./trainingData/iter_{Iterations}_epochs_{Epochs}_episodes_{Episodes}_horizon_{Horizon}/"
+    print(f"\ntraining data destination: {trainingFolder}\n")
     # Iterations = 2 # N env steps
     # Epochs = 20 # T
     # Episodes = 10 # G
@@ -252,7 +256,7 @@ def main(rollout_index):
         saveRun.append(pairs)
 
 
-    trainingFolder = "./trainingData/"
+    
     if not os.path.exists(trainingFolder):
         # create directory if not exist
         os.makedirs(trainingFolder)
@@ -261,8 +265,8 @@ def main(rollout_index):
         pickle.dump(saveRun, f)
 
 if __name__ == '__main__':
-    # for i in range(0, 1):
-    for i in range(0, 700):
+    for i in range(0, 1):
+    #for i in range(0, 700):
         main(i)
 
 # print("DONE!!!!!")
