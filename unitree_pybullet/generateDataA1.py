@@ -5,6 +5,7 @@ import numpy as np
 import math
 import pickle
 import os
+import sys
 
 robotHeight = 0.420393
 
@@ -265,8 +266,11 @@ def main(rollout_index):
         pickle.dump(saveRun, f)
 
 if __name__ == '__main__':
-    start = 0
-    end = 18
+    print(sys.argv)
+    
+    start = int(sys.argv[1])
+    end = int(sys.argv[2])
+    
     print(f"\ngenerating paths {start} to {end}...\n")
     for i in range(start, end):
         main(i)
