@@ -265,36 +265,8 @@ def main(rollout_index):
         pickle.dump(saveRun, f)
 
 if __name__ == '__main__':
-    for i in range(0, 1):
-    #for i in range(0, 700):
+    start = 0
+    end = 18
+    print(f"\ngenerating paths {start} to {end}...\n")
+    for i in range(start, end):
         main(i)
-
-# print("DONE!!!!!")
-# with open(f"results/run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
-#     pickle.dump(saveAction, f)
-            
-        
-        
-            
-            
-
-
-# while(1):
-#     with open("mocap.txt","r") as filestream:
-#         for line in filestream:
-#             maxForce = p.readUserDebugParameter(maxForceId)
-#             currentline = line.split(",")
-#             frame = currentline[0]
-#             t = currentline[1]
-#             joints=currentline[2:14]
-#             for j in range (12):
-#                 targetPos = float(joints[j])
-#                 p.setJointMotorControl2(quadruped, jointIds[j], p.POSITION_CONTROL, targetPos, force=maxForce)
-
-#             p.stepSimulation()
-#             time.sleep(1./500.)
-
-# FOR TESTING THE REWARD FUNCTION:
-# testAction = [0.037199,0.660252,-1.200187,-0.028954,0.618814,-1.183148,0.048225,0.690008,-1.254787,-0.050525,0.661355,-1.243304]
-# getReward(testAction, jointIds, quadruped)
-# exit()
