@@ -7,6 +7,7 @@ import pybullet_data
 import math
 import numpy as np
 import torch
+import pickle
 import time
 
 """
@@ -74,20 +75,19 @@ def genActionSeqSetFromNormalDist(mu, sigma, numOfPlans, horiLen, jointsForceRan
 Applys a random action to the all the joints.
 """
 def applyAction(uid, jointIds, action):
-    action = torch.tensor(action)
-    torqueScalar = 1
-    if args.robot == 'ur5':
-        correction = 105
-        action = torch.where(action > 0, torch.add(action, correction), torch.add(action, -correction))
-        # torqueScalar = 1
-        torqueScalar = 15
-    else:
-        torqueScalar = 15
-    action = torch.mul(action, torqueScalar)
-    if args.verbose: print(f"action applied: {action}")
-    p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=action)
-    for _ in range(SIM_STEPS):
-        p.stepSimulation()
+    action = torch.Tensor(action)
+    # torqueScalar = 1
+    # if args.robot == 'ur5':
+    #     correction = 105
+    #     action = torch.where(action > 0, torch.add(action, correction), torch.add(action, -correction))
+    #     # torqueScalar = 1
+    #     torqueScalar = 15
+    # else:
+    #     torqueScalar = 15
+    # action = torch.mul(action, torqueScalar)
+    print(f"action applied: {action}")
+    p.setJointMotorControlArray(uid, jointIds, p.POSITION_CONTROL, action)
+    p.stepSimulation()
 
 """
 Applies an action to each joint of the UR5 then returns the corresponding state.
@@ -256,6 +256,7 @@ def main():
         trajY = [-1 * (5 + 0.0 * np.cos(theta * 4)) * np.sin(theta) for theta in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         trajZ = [5 for z in np.arange(-np.pi + 0.2, np.pi - 0.2, resolution)]
         traj = np.array(list(zip(trajX, trajY, trajZ))) / 10
+        print(traj[0])
         if args.verbose: print(f"trajectory length: {len(traj)}")
         N = len(traj)                               # Number of environmental steps.
         G = 10                                      # Number of plans.
@@ -388,32 +389,25 @@ def main():
 
 def playback():
     if args.verbose: print(f"\nreading final actions from file: ./{args.robot}_final_actions.csv...\n")
-    filename = "./{args.robot}_final_actions.csv"
-    file = open(filename)
-    csvreader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
-    finalActions = []
-    for row in csvreader:
-        finalActions.append(row)
-    file.close()
+    # filename = "./{args.robot}_final_actions.csv"
+    with open('./trainingData/ur5/ur5sample.pkl', 'rb') as f:
+        tuples = pickle.load(f)
     if args.verbose: print(f"\n...final actions read\n")
-    if args.verbose: print(f"\n=== finalActions ===\n{finalActions}\n")
+    if args.verbose: print(f"\n=== finalActions ===\n{tuples}\n")
     
     loadEnv()
+    
+    ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
+    uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
+    
+    # moveToStartingPose(uid, ACTIVE_JOINTS)
 
-    ACTIVE_JOINTS = None
-
-    if args.robot == 'ur5':
-        ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
-        uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
-    else: 
-        uid, jointsForceRange, activeJoints = loadA1()
-        ACTIVE_JOINTS = activeJoints
-
-    moveToStartingPose(uid, ACTIVE_JOINTS)
-
-    for env_step in range(len(finalActions)):
-        applyAction(uid, ACTIVE_JOINTS, finalActions[env_step])
+    for tuple in tuples:
+        action = tuple[8:16]
+        print(action)
+        applyAction(uid, ACTIVE_JOINTS, action)
         time.sleep(1./25.)
+        # time.sleep(1.)
 
 def test():
     print("======= in test =======")
