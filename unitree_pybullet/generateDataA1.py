@@ -8,6 +8,9 @@ import os
 import sys
 
 robotHeight = 0.420393
+#device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+#print(device)
+#exit()
 
 def loadDog(pos, yaw):
     # class Dog:
@@ -84,6 +87,7 @@ def getState(goal, quadruped):
     distance = math.dist(pos, goalPoint)**2
     heightErr = abs(robotHeight - pos[2])
     state = torch.Tensor([pitchR, pitchL, rollF, rollR, yawR, yawL, distance, heightErr])
+    state = state.to(torch.device('cuda'))
     return state
 
 
@@ -106,7 +110,8 @@ def getReward(goal, action, jointIds, quadruped):
     p.stepSimulation()
     state = getState(goal, quadruped)
     w = torch.Tensor([2000,2000,300,300,300,300,2,3000])
-    reward = (w*state).sum().numpy()
+    w = w.to(torch.device('cuda'))
+    reward = (w*state).cpu().sum().numpy()
     if state[-1] > 0.25:
         reward += 1000
     return reward
@@ -179,7 +184,9 @@ def main(rollout_index):
     jointMins = jointMins*Horizon
     jointMaxes = jointMaxes*Horizon
     jointMins = torch.Tensor(jointMins)
+    jointMins = jointMins.to(torch.device('cuda'))
     jointMaxes = torch.Tensor(jointMaxes)
+    jointMaxes = jointMaxes.to(torch.device('cuda'))
 
     # THIS IS TO MAKE THE ROBOT DROP FIRST
 
@@ -192,7 +199,9 @@ def main(rollout_index):
     for iter in range(Iterations):
         print(f"Running Iteration {iter} ...")
         mu = torch.Tensor([0]*(numJoints * Horizon))
+        mu = mu.to(torch.device('cuda'))
         cov = torch.eye(len(mu)) * ((np.pi/2) ** 2)
+        cov = cov.to(torch.device('cuda'))
         # this is what we should be resetting to
         startState = p.saveState()
         # number of episodes to sample
@@ -226,13 +235,16 @@ def main(rollout_index):
             # Now just get a list of episodes from these (episode,cost) pairs
             topK = [x[0] for x in epsMem]
             topK = torch.Tensor(topK)
+            topK = topK.to(torch.device('cuda'))
             # Now grab the means and covariances of these top K 
             mu = torch.mean(topK, axis = 0)
             std = torch.std(topK, axis = 0)
             var = torch.square(std)
             noise = torch.Tensor([0.2]*Horizon*numJoints)
+            noise = noise.to(torch.device('cuda'))
             var = var + noise
-            cov = torch.Tensor(np.diag(var))
+            cov = torch.Tensor(np.diag(var.cpu()))
+            cov = cov.to(torch.device('cuda'))
             currEpsNum = Episodes - TopKEps
         
         # with open(f"results/{Epochs}graph.pkl", 'wb') as f:
