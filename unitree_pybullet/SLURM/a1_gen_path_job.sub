@@ -1,0 +1,16 @@
+#!/bin/bash
+# FILENAME:  a1_gen_path_job.sub
+
+#SBATCH -A long
+
+#SBATCH --nodes=5 --exclusive 
+#SBATCH --time=24:00:00
+#SBATCH --job-name a1_gen_path_job
+
+# Print the hostname of the compute node on which this job is running.
+/bin/hostname
+
+module spider anaconda
+
+
+python3 generateDataA1.py
