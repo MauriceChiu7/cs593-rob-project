@@ -9,6 +9,7 @@ import math
 import pickle
 import os
 import random
+import matplotlib.pyplot as plt
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
 
@@ -230,6 +231,8 @@ for iter in range(Iterations):
     currEpsNum = Episodes
     # This is the "memory bank" of episodes we are going to use
     epsMem = []
+    error_episode = []
+    error_epoch = []
     for e in range(Epochs): 
         print(f"Epoch {e}")     
         # initialize multivariate distribution
@@ -244,6 +247,12 @@ for iter in range(Iterations):
             episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
             # get cost of episode
             cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalState)
+
+            #TODO: hard_coded value
+            if e == 29:
+                error_episode.append(cost)
+            if eps == 9:
+                error_epoch.append(cost)
             # store the episode, along with the cost, in episode memory
             epsMem.append((episode,cost))
         p.restoreState(startState)
@@ -257,6 +266,11 @@ for iter in range(Iterations):
         # Now just get a list of episodes from these (episode,cost) pairs
         topK = [x[0] for x in epsMem]
         topK = torch.Tensor(topK)
+        sortedTopK = torch.sort(topK, dim=0)
+        if e ==29 and eps == 9:
+            #Set Epochs and Episodes to be constant: graph Error v TopK 
+            # (x: en, y: Distance between bestAction and Subgoal)
+            pickle.dump(sortedTopK[:5], open(f"topK_{iter}.p", "wb"))
         # Now grab the means and covariances of these top K 
         mu = torch.mean(topK, axis = 0)
         std = torch.std(topK, axis = 0)
@@ -266,6 +280,13 @@ for iter in range(Iterations):
         cov = torch.Tensor(np.diag(var))
         currEpsNum = Episodes - TopKEps
     
+
+    #Set Epoch to be constant: graph Error v Episode
+    pickle.dump(error_episode, open("error_episode.p", "wb"))
+    #Set Episodes to be constant: graph Error v Epoch
+    pickle.dump(error_epoch, open("error_epoch.p", "wb"))
+
+
     # with open(f"results/{Epochs}graph.pkl", 'wb') as f:
     #     pickle.dump(error, f)
     # exit()
@@ -290,6 +311,7 @@ for iter in range(Iterations):
     saveRun.append(pairs)
 
 
+
 trainingFolder = "./trainingData/ur5/"
 if not os.path.exists(trainingFolder):
     # create directory if not exist
@@ -300,34 +322,3 @@ with open(trainingFolder + "ur5sample.pkl", 'wb') as f:
 
 
 
-
-
-# print("DONE!!!!!")
-# with open(f"results/run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
-#     pickle.dump(saveAction, f)
-            
-        
-        
-            
-            
-
-
-# while(1):
-#     with open("mocap.txt","r") as filestream:
-#         for line in filestream:
-#             maxForce = p.readUserDebugParameter(maxForceId)
-#             currentline = line.split(",")
-#             frame = currentline[0]
-#             t = currentline[1]
-#             joints=currentline[2:14]
-#             for j in range (12):
-#                 targetPos = float(joints[j])
-#                 p.setJointMotorControl2(quadruped, jointIds[j], p.POSITION_CONTROL, targetPos, force=maxForce)
-
-#             p.stepSimulation()
-#             time.sleep(1./500.)
-
-# FOR TESTING THE REWARD FUNCTION:
-# testAction = [0.037199,0.660252,-1.200187,-0.028954,0.618814,-1.183148,0.048225,0.690008,-1.254787,-0.050525,0.661355,-1.243304]
-# getReward(testAction, jointIds, quadruped)
-# exit()
