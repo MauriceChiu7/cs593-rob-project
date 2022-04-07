@@ -1,118 +1,67 @@
-from ast import Pass
+import os
 import pybullet as p
+import pybullet_data
 import torch
-import time
-import numpy as np
-import math
 import pickle
+import time
 
-# robotHeight = 0.420393
-
-
-def getState(quadruped):
-    # ideal height for dog to maintain
-    global robotHeight
-    hips = []
-    # goal point for dog to reach
-    goalPoint = [10,0, robotHeight]    
-    # [FR, FL, RR, RL]
-    hipIds = [2,6,10,14]
-    for id in hipIds:
-        hips.append(p.getLinkState(quadruped, id)[0])
-    pitchR = abs(hips[0][2] - hips[2][2])
-    pitchL = abs(hips[1][2] - hips[3][2])
-    rollF = abs(hips[0][2] - hips[1][2])
-    rollR = abs(hips[2][2] - hips[3][2])
-    yawR = abs(hips[0][1] - hips[2][1])
-    yawL = abs(hips[1][1] - hips[3][1])
-    pos = (p.getLinkState(quadruped, 0)[0])
-    distance = math.dist(pos, goalPoint)**2
-    heightErr = abs(robotHeight - pos[2])
-    state = torch.Tensor([pitchR, pitchL, rollF, rollR, yawR, yawL, distance, heightErr])
-    return state 
-
-def getReward(action, jointIds, quadruped):
-    # print(action)
-    # p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
-    # p.stepSimulation()
-    state = getState(quadruped)
-    w = torch.Tensor([2000,2000,300,300,300,300,2,3000])
-    reward = (w*state).sum().numpy()
-    if state[-1] > 0.25:
-        reward += 1000
-    return reward
-
-def loadDog():
-    # class Dog:
+"""
+Loads pybullet environment with a horizontal plane and earth like gravity.
+"""
+def loadEnv():
     p.connect(p.GUI)
-    plane = p.loadURDF("plane.urdf")
-    p.setGravity(0,0,-9.8)
-    p.setTimeStep(1./50)
-    #p.setDefaultContactERP(0)
-    #urdfFlags = p.URDF_USE_SELF_COLLISION+p.URDF_USE_SELF_COLLISION_EXCLUDE_ALL_PARENTS
-    urdfFlags = p.URDF_USE_SELF_COLLISION
-    quadruped = p.loadURDF("a1/urdf/a1.urdf",[0,0,0.48],[0,0,0,1], flags = urdfFlags,useFixedBase=False)
+    p.setAdditionalSearchPath(pybullet_data.getDataPath())
+    
+    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
+    
+    p.setGravity(0, 0, -9.8)
+    p.setTimeStep(1./500)
+    # p.setRealTimeSimulation(1)
 
-    #enable collision between lower legs
-    # for j in range (p.getNumJoints(quadruped)):
-            # print(p.getJointInfo(quadruped,j))
-
-    lower_legs = [2,5,8,11]
-    for l0 in lower_legs:
-        for l1 in lower_legs:
-            if (l1>l0):
+"""
+Loads the UR5 robot.
+"""
+def loadUR5(activeJoints):
+    path = f"{os.getcwd()}/ur5pybullet"
+    os.chdir(path) # Needed to change directory to load the UR5.
+    uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
+    path = f"{os.getcwd()}/.."
+    os.chdir(path) # Back to parent directory.
+    # Enable collision for all link pairs.
+    for l0 in range(p.getNumJoints(uid)):
+        for l1 in range(p.getNumJoints(uid)):
+            if (not l1>l0):
                 enableCollision = 1
-                # print("collision for pair",l0,l1, p.getJointInfo(quadruped,l0)[12],p.getJointInfo(quadruped,l1)[12], "enabled=",enableCollision)
-                p.setCollisionFilterPair(quadruped, quadruped, 2,5,enableCollision)
+                p.setCollisionFilterPair(uid, uid, l1, l0, enableCollision)
+    return uid
 
-    jointIds=[]
-    paramIds=[]
-
-    maxForceId = p.addUserDebugParameter("maxForce",0,100,20)
-
-    for j in range (p.getNumJoints(quadruped)):
-        p.changeDynamics(quadruped,j,linearDamping=0, angularDamping=0)
-        info = p.getJointInfo(quadruped,j)
-        # print(info)
-        jointName = info[1]
-        jointType = info[2]
-        if (jointType==p.JOINT_PRISMATIC or jointType==p.JOINT_REVOLUTE):
-            jointIds.append(j)
-
-    # print(jointIds)
-
-    p.getCameraImage(480,320)
-    p.setRealTimeSimulation(0)
-
-    joints=[]
-    return maxForceId, quadruped, jointIds
-
-
-maxForceId, quadruped, jointIds = loadDog()
-for _ in range(100):
+"""
+Applys a random action to the all the joints.
+"""
+def applyAction(uid, jointIds, action):
+    action = torch.Tensor(action)
+    print(f"action applied:\n{action}")
+    p.setJointMotorControlArray(uid, jointIds, p.POSITION_CONTROL, action)
     p.stepSimulation()
 
-# with open('results/run_I300_E5_Eps150.pkl', 'rb') as f:
-#     actions = pickle.load(f)
+def playback():
+    with open('./trainingData/ur5/ur5sample.pkl', 'rb') as f:
+        tuples = pickle.load(f)
+    
+    loadEnv()
+    
+    ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
+    uid = loadUR5(ACTIVE_JOINTS)
+    
+    # moveToStartingPose(uid, ACTIVE_JOINTS)
 
-# realActions = actions[:-150]
+    for tuple in tuples:
+        action = tuple[8:16]
+        print(action)
+        applyAction(uid, ACTIVE_JOINTS, action)
+        time.sleep(1./25.)
+        # time.sleep(1.)
 
-# with open(f"results/GOODRUN.pkl", 'wb') as f:
-#     pickle.dump(realActions, f)
-
-# exit()
-
-# print(actions)
-
-with open('results/run_I200_E4_Eps30.pkl', 'rb') as f:
-    actions = pickle.load(f)
-
-# print(len(actions))
-# exit()
-
-for action in actions:
-    p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
-    p.stepSimulation()
-    # print(getState(quadruped))
-    print(getReward(action, jointIds, quadruped))
-    time.sleep(0.05)
+if __name__ == '__main__':
+    
+    playback()
