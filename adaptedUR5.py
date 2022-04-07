@@ -8,6 +8,7 @@ import numpy as np
 import math
 import pickle
 import os
+import random
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
 
@@ -30,7 +31,7 @@ def loadEnv():
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     p.setGravity(0, 0, -9.8)
-    p.setTimeStep(1./500)
+    p.setTimeStep(1./50.)
     # p.setRealTimeSimulation(1)
     # if args.verbose: print(f"\n...environment loaded\n")
 
@@ -106,21 +107,22 @@ def getConfig(uid):
         config.append(torch.Tensor(p.getLinkState(uid, i, 1)[0]))
     return torch.stack(config)
 
-# def getFinalState(robotArm):
-#     state = []
-#     # [FR, FL, RR, RL]
-    
-#     # Get body
-#     state.extend(p.getLinkState(robotArm, 0)[0])
-
-#     return state
-
+"""
+Moves the robots to their starting position.
+"""
+def moveToStartingPose(uid, jointIds, random_action):
+    steps = random.randint(10, 100)
+    print(f"steps: {steps}")
+    for _ in range(steps):
+        p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=random_action)
+        p.stepSimulation()
 
 def getReward(action, jointIds, robotArm, goalState):
     # print(action)
     reward = 0
     p.setJointMotorControlArray(robotArm, jointIds, p.POSITION_CONTROL, action)
-    #TODO: which one is elbow? currently hard-coded 3
+    
+    # Joint 3 is the elbow joint
     elbowBefore = torch.Tensor(np.array(p.getLinkState(robotArm, 3)[0]))
     p.stepSimulation()
     # state = getState(robotArm)
@@ -166,6 +168,13 @@ def getEpsReward(eps, jointIds, robotArm, Horizon, goalState):
     return reward
 
 
+torch_seed = np.random.randint(low=0, high=1000)
+np_seed = np.random.randint(low=0, high=1000)
+py_seed = np.random.randint(low=0, high=1000)
+torch.manual_seed(torch_seed)
+np.random.seed(np_seed)
+random.seed(py_seed)
+
 loadEnv()
 uid, jointsForceRange = loadUR5()
 
@@ -181,38 +190,41 @@ jointMaxes = jointMaxes*Horizon
 jointMins = torch.Tensor(jointMins)
 jointMaxes = torch.Tensor(jointMaxes)
 
-
-
-# # THIS IS TO MAKE THE ROBOT DROP FIRST
-
-# for _ in range(100):
-#     p.stepSimulation()
-
 saveRun = []    # Store for training
 saveAction = []
 error = []
 
-#TODO: change to UR5 limits
-# r, theta, phi = np.random.uniform(.1, .6), np.random.uniform(0, 2*np.pi), np.random.uniform(np.pi/2 - .3, np.pi/2 + .3)
-# x = r*np.cos(theta)*np.sin(phi)
-# y = r*np.sin(theta)*np.sin(phi)
-# z = r*np.cos(phi)
+# Generate random goal state for UR5
 x = np.random.uniform(-0.7, 0.7)
 y = np.random.uniform(-0.7, 0.7)
-z = np.random.uniform(0, 0.7)
-
-
+z = np.random.uniform(0.1, 0.7)
 goalState = torch.Tensor([x, y, z])
-print(f"goalState: {goalState}")
 p.addUserDebugLine([0,0,0.1], goalState, [0,0,1])
+print(f"goalState: {goalState}")
 
+# ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
+torqueRanges = [70, 120, 66, 55, 53, 53]
+# torqueRanges = [80, 120, 80, 60, 60, 60]
+random_action = []
+
+for aRange in torqueRanges:
+    sign = 1 if random.random() < 0.5 else -1
+    random_action.append(aRange*sign)
+random_action.append(0.0)
+random_action.append(0.0)
+print(f"random_action: {random_action}")
+# random_action = [j1, j2, j3, j4, j5, j6, 0.0, 0.0]
+moveToStartingPose(uid, ACTIVE_JOINTS, random_action)
+
+# while 1:
+#     p.stepSimulation()
 
 for iter in range(Iterations):
     print(f"Running Iteration {iter} ...")
     mu = torch.Tensor([0]*(numJoints * Horizon))
     cov = torch.eye(len(mu)) * ((np.pi/2) ** 2)
     # this is what we should be resetting to
-    #TODO: apply random action before initializing
+
     startState = p.saveState()
     # number of episodes to sample
     currEpsNum = Episodes
