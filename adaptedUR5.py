@@ -1,5 +1,5 @@
 import argparse
-from tkinter import ACTIVE
+from tkinter import ACTIVE, E
 import pybullet as p
 import pybullet_data
 import torch
@@ -27,8 +27,8 @@ Loads pybullet environment with a horizontal plane and earth like gravity.
 """
 def loadEnv():
     # if args.verbose: print(f"\nloading environment...\n")
-    p.connect(p.GUI)
-    # p.connect(p.DIRECT)
+    # p.connect(p.GUI)
+    p.connect(p.DIRECT)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     p.setGravity(0, 0, -9.8)
@@ -83,11 +83,6 @@ def getJointsForceRange(uid, jointIds):
         jointsForceRange.append((mins, maxs))
     return jointsForceRange
 
-
-
-
-
-
 def getLimitPos(jointIds, robot):
     mins = []
     maxes = []
@@ -111,8 +106,7 @@ def getConfig(uid):
 """
 Moves the robots to their starting position.
 """
-def moveToStartingPose(uid, jointIds, random_action):
-    steps = random.randint(10, 100)
+def moveToStartingPose(uid, jointIds, random_action, steps):
     print(f"steps: {steps}")
     for _ in range(steps):
         p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=random_action)
@@ -129,8 +123,16 @@ def getReward(action, jointIds, robotArm, goalState):
     # state = getState(robotArm)
     # w = torch.Tensor([2000,2000,300,300,300,300,2,3000])
     # reward = (w*state).sum().numpy()
-    reward = reward - dist(getState(robotArm), goalState)
-    reward = reward - dist(torch.Tensor(p.getLinkState(robotArm, 3)[0]), elbowBefore)
+    ee_penalty = dist(getState(robotArm), goalState)
+    elbow_penalty = dist(torch.Tensor(p.getLinkState(robotArm, 3)[0]), elbowBefore)
+
+    ee_penalty *= 1
+    elbow_penalty *= 10
+
+    # print(f"ee_penalty: {ee_penalty}")
+    # print(f"elbow_penalty: {elbow_penalty}")
+    reward = reward + ee_penalty
+    reward = reward + elbow_penalty
     # if state[-1] > 0.25:
     #     reward += 1000
     # print(f"reward: {reward}")
@@ -179,9 +181,9 @@ random.seed(py_seed)
 loadEnv()
 uid, jointsForceRange = loadUR5()
 
-Iterations = 50
-Epochs = 10
-Episodes = 30
+Iterations = 30
+Epochs = 30
+Episodes = 100
 Horizon = 50
 TopKEps = int(0.3*Episodes)
 numJoints = len(ACTIVE_JOINTS)
@@ -201,8 +203,8 @@ y = np.random.uniform(-0.7, 0.7)
 z = np.random.uniform(0.1, 0.7)
 goalState = torch.Tensor([x, y, z])
 p.addUserDebugLine([0,0,0.1], goalState, [0,0,1])
-print(f"goalState: {goalState}")
-
+print(f"\ngoalState: {goalState}\n")
+steps = random.randint(10, 100)
 # ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
 torqueRanges = [70, 120, 66, 55, 53, 53]
 # torqueRanges = [80, 120, 80, 60, 60, 60]
@@ -215,10 +217,18 @@ random_action.append(0.0)
 random_action.append(0.0)
 print(f"random_action: {random_action}")
 # random_action = [j1, j2, j3, j4, j5, j6, 0.0, 0.0]
-moveToStartingPose(uid, ACTIVE_JOINTS, random_action)
+moveToStartingPose(uid, ACTIVE_JOINTS, random_action, steps)
+print(f"random_action: {random_action}")
+print(f"steps: {steps}")
+print(f"\nstartState: {getState(uid)}")
 
 # while 1:
 #     p.stepSimulation()
+
+# 1. Set Episode to be constant: graph Error v Epoch (x: Epochs Count y: Distance between bestAction and Subgoal)
+# 2. Set Epoch to be constant: graph Error v Episode
+# 3. Set Epochs and Episodes to be constant: graph Error v TopK (x: Different amount of top K actions, y: Distance between bestAction and Subgoal)
+# 4. Set Epoch, Episodes, and TopK constant: graph Error v Horizon Length (x: Different lengths of Horizon Lengths, y: Distance between bestAction and Subgoal)
 
 for iter in range(Iterations):
     print(f"Running Iteration {iter} ...")
@@ -231,8 +241,8 @@ for iter in range(Iterations):
     currEpsNum = Episodes
     # This is the "memory bank" of episodes we are going to use
     epsMem = []
-    error_episode = []
     error_epoch = []
+    error_episode = []
     for e in range(Epochs): 
         print(f"Epoch {e}")     
         # initialize multivariate distribution
@@ -247,14 +257,19 @@ for iter in range(Iterations):
             episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
             # get cost of episode
             cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalState)
-
+            # print(cost)
+            # exit(0)
+            # GRAPH
             #TODO: hard_coded value
-            if e == 29:
-                error_episode.append(cost)
-            if eps == 9:
-                error_epoch.append(cost)
+            # if e == 29:
+            #     error_episode.append(cost)
+            # if eps == 9:
+            #     error_epoch.append(cost)
+
             # store the episode, along with the cost, in episode memory
             epsMem.append((episode,cost))
+            # print((episode,cost))
+            # exit(0)
         p.restoreState(startState)
         # Sort the episode memory
         epsMem = sorted(epsMem, key = lambda x: x[1])
@@ -267,10 +282,16 @@ for iter in range(Iterations):
         topK = [x[0] for x in epsMem]
         topK = torch.Tensor(topK)
         sortedTopK = torch.sort(topK, dim=0)
-        if e ==29 and eps == 9:
-            #Set Epochs and Episodes to be constant: graph Error v TopK 
-            # (x: en, y: Distance between bestAction and Subgoal)
-            pickle.dump(sortedTopK[:5], open(f"topK_{iter}.p", "wb"))
+        
+        error_per_epoch = epsMem[0][1]
+        error_epoch.append((e, error_per_epoch))
+
+        # GRAPH
+        # if e ==29 and eps == 9:
+        #     #Set Epochs and Episodes to be constant: graph Error v TopK 
+        #     # (x: en, y: Distance between bestAction and Subgoal)
+        #     pickle.dump(sortedTopK[:5], open(f"topK_{iter}.p", "wb"))
+        
         # Now grab the means and covariances of these top K 
         mu = torch.mean(topK, axis = 0)
         std = torch.std(topK, axis = 0)
@@ -280,16 +301,17 @@ for iter in range(Iterations):
         cov = torch.Tensor(np.diag(var))
         currEpsNum = Episodes - TopKEps
     
-
-    #Set Epoch to be constant: graph Error v Episode
-    pickle.dump(error_episode, open("error_episode.p", "wb"))
-    #Set Episodes to be constant: graph Error v Epoch
-    pickle.dump(error_epoch, open("error_epoch.p", "wb"))
-
-
-    # with open(f"results/{Epochs}graph.pkl", 'wb') as f:
-    #     pickle.dump(error, f)
-    # exit()
+    
+    # exit(0)
+    
+    # Set Episodes to be constant: graph Error v Epoch
+    if not os.path.exists("./ur5_results/"):
+        os.makedirs("./ur5_results/")
+    with open("./ur5_results/error_epoch.pkl", "wb") as f:
+        pickle.dump(error_epoch, f)
+    # print(error_epoch)
+    # exit(0)
+    
 
     # Save best action
     bestAction = epsMem[0][0][0:numJoints]
@@ -300,7 +322,7 @@ for iter in range(Iterations):
     pairs.extend(getConfig(uid))
     pairs.extend(bestAction)
 
-    print(f"Best Action: {bestAction}")
+    # print(f"Best Action: {bestAction}")
 
     # Apply action
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, bestAction)
@@ -310,6 +332,15 @@ for iter in range(Iterations):
     pairs.extend(getConfig(uid))
     saveRun.append(pairs)
 
+# GRAPH
+# Set Epoch to be constant: graph Error v Episode
+# pickle.dump(error_episode, open("error_episode.p", "wb"))
+
+
+
+# with open(f"results/{Epochs}graph.pkl", 'wb') as f:
+#     pickle.dump(error, f)
+# exit()
 
 
 trainingFolder = "./trainingData/ur5/"

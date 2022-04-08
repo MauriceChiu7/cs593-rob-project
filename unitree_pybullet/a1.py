@@ -131,10 +131,8 @@ def getEpsReward(eps, jointIds, quadruped, Horizon):
 
         if h == 2:
             startDist = getState(quadruped).tolist()[6]
-            
         # print(h)
         # time.sleep(0.2)
-    
     if startDist < endDist:
         # print(f"START: {startDist}")
         # print(f"END: {endDist}")
