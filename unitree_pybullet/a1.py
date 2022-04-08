@@ -167,6 +167,7 @@ for iter in range(Iterations):
     cov = torch.eye(len(mu)) * ((np.pi/2) ** 2)
     # this is what we should be resetting to
     startState = p.saveState()
+    p.restoreState(startState)
     # number of episodes to sample
     currEpsNum = Episodes
     # This is the "memory bank" of episodes we are going to use
@@ -223,6 +224,8 @@ for iter in range(Iterations):
     # Apply action
     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, bestAction)
     p.stepSimulation()
+    temp = p.saveState()
+    p.restoreState(temp)
 
     # After applying action, append state2
     pairs.extend(getFinalState(quadruped))
