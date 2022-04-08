@@ -15,7 +15,7 @@ def loadEnv():
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     
     p.setGravity(0, 0, -9.8)
-    p.setTimeStep(1./500)
+    p.setTimeStep(1./50.)
     # p.setRealTimeSimulation(1)
 
 """
@@ -35,6 +35,12 @@ def loadUR5(activeJoints):
                 p.setCollisionFilterPair(uid, uid, l1, l0, enableCollision)
     return uid
 
+def moveToStartingPose(uid, jointIds, random_action, steps):
+    print(f"steps: {steps}")
+    for _ in range(steps):
+        p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=random_action)
+        p.stepSimulation()
+
 """
 Applys a random action to the all the joints.
 """
@@ -53,7 +59,17 @@ def playback():
     ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
     uid = loadUR5(ACTIVE_JOINTS)
     
-    # moveToStartingPose(uid, ACTIVE_JOINTS)
+    goalState = [-0.0405, -0.5401,  0.2330]
+    startState = [-0.9017, -0.1868,  0.1937]
+
+    p.addUserDebugLine([0,0,0.1], startState, [1,0,0])
+    p.addUserDebugLine([0,0,0.1], goalState, [0,0,1])
+    
+    action = [-70, 120, -66, -55, -53, -53, 0.0, 0.0]
+    step = 33
+
+    moveToStartingPose(uid, ACTIVE_JOINTS, action, step)
+    # exit(0)    
 
     for tuple in tuples:
         action = tuple[8:16]
