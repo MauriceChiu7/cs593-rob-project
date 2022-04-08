@@ -104,13 +104,16 @@ for _ in range(100):
 
 # print(actions)
 
-with open('results/run_I200_E4_Eps30.pkl', 'rb') as f:
+with open('../test/run_I300_E10_Eps100.pkl', 'rb') as f:
     actions = pickle.load(f)
 
-# print(len(actions))
-# exit()
+# A1
+numJoints = 12
 
-for action in actions:
+for i in range(int(3600/12)):
+    start = i*numJoints
+    end = start + numJoints
+    action = actions[start:end]
     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
     p.stepSimulation()
     # print(getState(quadruped))
