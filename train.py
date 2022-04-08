@@ -27,21 +27,18 @@ class NeuralNetwork(nn.Module):
 # TODO: normalize inputs and outputs
 def train(args):
     # Open pkl file
-    trainingFolder = args.folder
     tups = None
     allData = []
 
     # Read through training directory
-    path, dirs, files = next(os.walk(trainingFolder))
-    for x in range(len(files)):
-        fname = "sample_{}.pkl".format(x)
-        currName = trainingFolder + fname
-
+    _, _, files = next(os.walk(args.training_folder))
+    for fi in files:
+        # Open every file and combine the state_action pairs
+        currName = args.training_folder + fi
         with open(currName, 'rb') as f:
             tups = pickle.load(f)
-            
         allData.extend(tups)
-    
+
     # Shuffle state-action pairs
     random.shuffle(allData)
 
@@ -59,11 +56,11 @@ def train(args):
 
     mse = nn.MSELoss()
     for t in allData:
-        state1 = t[:stateLength+actionLength]
+        state_action = t[:stateLength+actionLength]
         nnTarget = t[stateLength+actionLength:]
 
         # Pass into Neural Net and get MSE Loss
-        nnPred = neuralNet.forward(torch.Tensor(state1))
+        nnPred = neuralNet.forward(torch.Tensor(state_action))
         loss = mse(nnPred, torch.Tensor(nnTarget))
 
         optimizer.zero_grad()
@@ -78,14 +75,21 @@ def train(args):
         os.makedirs(modelFolder)
     
     if args.robot == "a1":
-        torch.save(neuralNet.fc.state_dict(), modelFolder + "A1_model.pt")
+        torch.save(neuralNet.fc.state_dict(), modelFolder + "A1_model_1.pt")
     else:   # UR5
         torch.save(neuralNet.fc.state_dict(), modelFolder + "UR5_model.pt")
 
 
 if __name__ == '__main__':
+    Iterations = 300
+    Epochs = 10
+    Episodes = 100
+    Horizon = 50
+
+    trainingFolder = f"./unitree_pybullet/trainingData/iter_{Iterations}_epochs_{Epochs}_episodes_{Episodes}_horizon_{Horizon}/"
+
     parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')
-    parser.add_argument('--folder', type=str, default="./training/", help='path to training folder')
+    parser.add_argument('--training-folder', type=str, default=trainingFolder, help='path to training folder')
     parser.add_argument('--robot', type=str, help='robot type')
     args = parser.parse_args()
     
