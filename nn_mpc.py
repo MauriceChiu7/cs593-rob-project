@@ -132,7 +132,7 @@ def main(args):
         pass
 
     # Initialize variables
-    Iterations = 300
+    Iterations = 50
     Epochs = 10
     Episodes = 100
     Horizon = 50
@@ -192,14 +192,18 @@ def main(args):
         # Set the new state
         initialState = getStateFromNN(neuralNet, epsMem[0][0][0:numJoints], initialState).tolist()
 
+    folder = f"./testNNmpc/"
+    if not os.path.exists(folder):
+        # create directory if not exist
+        os.makedirs(folder)
 
     print("DONE!!!!!")
-    with open(f"./test/run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
+    with open(folder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
         pickle.dump(bestActions, f)
 
 
 if __name__ == '__main__':
-    modelFolder = "./models/A1_model_1.pt"
+    modelFolder = "./models/A1_model_2.pt"
 
     parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')
     parser.add_argument('--model-folder', type=str, default=modelFolder, help="path to model")
