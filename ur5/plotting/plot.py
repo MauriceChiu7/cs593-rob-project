@@ -25,7 +25,7 @@ def readPickle(file):
 def main():
     legends = []
 
-    content = readPickle("./ur5_results/error_epoch.pkl")
+    content = readPickle("./graphs/error_epoch.pkl")
     x_axis = []
     y_axis = []
     for (x, y) in content:
