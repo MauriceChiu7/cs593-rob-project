@@ -81,17 +81,20 @@ def getReward(state):
 def getEpsReward(neuralNet, actionLength, initialState, episode, jointIds, Horizon):
     numJoints = len(jointIds)
     reward = 0
+    startDist, endDist = 0,0
+    state0 = initialState
     for h in range(Horizon):
         start = h*numJoints
         end = start + numJoints
-        action = episode[:actionLength]
-        state = getStateFromNN(neuralNet, action, initialState)
-        reward += getReward(getWeightedState(state))
+        action = episode[start:end]
+        state1 = getStateFromNN(neuralNet, action, state0)
+        reward += getReward(getWeightedState(state1))
+        state0 = state1     # this is to continue where the state left off
 
         if h == (Horizon-1):
             futureS = start
             futureE = end
-            endDist = state.tolist()[6]
+            endDist = state1.tolist()[6]
         else:
             futureS = end
             futureE = end + numJoints
@@ -100,12 +103,13 @@ def getEpsReward(neuralNet, actionLength, initialState, episode, jointIds, Horiz
         reward += actionMag
 
         if h == 2:
-            startDist = state.tolist()[6]
+            startDist = state1.tolist()[6]
 
     if startDist < endDist:
         # print(f"START: {startDist}")
         # print(f"END: {endDist}")
         reward += 10000
+    # exit()
     return reward
 
 def main(args):
@@ -132,7 +136,7 @@ def main(args):
         pass
 
     # Initialize variables
-    Iterations = 50
+    Iterations = 48
     Epochs = 10
     Episodes = 100
     Horizon = 50
@@ -147,6 +151,7 @@ def main(args):
     # MPC
     for iter in range(Iterations):
         print(f"Running Iteration {iter} ...")
+        # print(initialState)
         mu = torch.Tensor([0]*(numJoints * Horizon))
         cov = torch.eye(len(mu)) * ((np.pi/2) ** 2)
         # this is what we should be resetting to
@@ -154,7 +159,7 @@ def main(args):
         currEpsNum = Episodes
         # This is the "memory bank" of episodes we are going to use
         epsMem = []
-        for e in range(Epochs): 
+        for e in range(Epochs):
             print(f"Epoch {e}")
             # print(initialState)
             # initialize multivariate distribution
@@ -173,7 +178,7 @@ def main(args):
             # Sort the episode memory
             epsMem = sorted(epsMem, key = lambda x: x[1])
 
-            # Now get the top K episodes 
+            # Now get the top K episodes
             epsMem = epsMem[0:TopKEps]
             # Now just get a list of episodes from these (episode,cost) pairs
             topK = [x[0] for x in epsMem]
@@ -186,7 +191,7 @@ def main(args):
             var = var + noise
             cov = torch.Tensor(np.diag(var))
             currEpsNum = Episodes - TopKEps
-
+        # print("Reward Taken: ", epsMem[0][1])
         # Save best action and state
         bestActions.extend(epsMem[0][0][0:numJoints])
         # Set the new state
@@ -203,7 +208,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    modelFolder = "./models/A1_model_2.pt"
+    modelFolder = "./models/A1_model_3.pt"
 
     parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')
     parser.add_argument('--model-folder', type=str, default=modelFolder, help="path to model")
