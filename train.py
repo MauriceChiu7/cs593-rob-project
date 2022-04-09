@@ -121,7 +121,6 @@ def test(args):
 
     # Open testData
     tups = None
-    allData = []
 
     allMSE = []
 
@@ -139,7 +138,7 @@ def test(args):
             tups[i][-stateLength:] = tups[i+1][:stateLength]
         tups = tups[:-1]
 
-
+        m = []
         mse = nn.MSELoss()
         for t in tups:
             state_action = t[:stateLength+actionLength]
@@ -148,13 +147,20 @@ def test(args):
             # Pass into Neural Net and get MSE Loss
             nnPred = neuralNet.forward(torch.Tensor(state_action))
             loss = mse(nnPred, torch.Tensor(nnTarget))
-            allMSE.append(loss.item())
+            m.append(loss.item())
+
+        # Add to might
+        allMSE.append(m)
+
+    allMSE = torch.mean(torch.Tensor(allMSE), axis=0)
 
     # print(len(allMSE))
-    t = f"A1: MSE per State Predicton"
+    # t = f"A1: Average MSE per Environment Step for 12 Test Paths, trained with 20 Paths"
+    t = f"A1: MSE per Environment Step for 1 Test Paths, trained with 31 Paths"
     
     # Plot graph
-    plt.xlabel("State prediction")
+    plt.xlabel("Environment Step")
+    # plt.ylabel("Average MSE")
     plt.ylabel("MSE")
 
     plt.plot(allMSE, marker='o')
@@ -168,7 +174,7 @@ if __name__ == '__main__':
     Episodes = 100
     Horizon = 50
 
-    modelFolder = "./models/A1_model_2.pt"
+    modelFolder = "./models/A1_model_3.pt"
     trainingFolder = f"./unitree_pybullet/trainingData/iter_{Iterations}_epochs_{Epochs}_episodes_{Episodes}_horizon_{Horizon}/"
     testingFolder = f"./unitree_pybullet/testData/iter_{Iterations}_epochs_{Epochs}_episodes_{Episodes}_horizon_{Horizon}/"
 
