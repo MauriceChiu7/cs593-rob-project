@@ -12,6 +12,7 @@ import random
 import matplotlib.pyplot as plt
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
+END_EFFECTOR_INDEX = 7 # The end effector link index.
 
 def diff(v1, v2):
     return [x1 - x2 for x1, x2 in zip(v1, v2)]
@@ -92,25 +93,52 @@ def getLimitPos(jointIds, robot):
         maxes.append(info[9])
     return mins, maxes
 
+"""
+Gets the upper and lower positional limits of each joint.
+"""
+def getJointsRange(uid, jointIds):
+    jointsRange = []
+    for a in jointIds:
+        jointInfo = p.getJointInfo(uid, a)
+        jointsRange.append((jointInfo[8], jointInfo[9]))
+    return jointsRange
+
 def getState(robotArm):
-    END_EFFECTOR_INDEX = 7 # The end effector link index.
     eePos = torch.Tensor(p.getLinkState(robotArm, END_EFFECTOR_INDEX, 1)[0])
     return eePos
 
-def getConfig(uid):
-    config = []
-    for i in range(len(ACTIVE_JOINTS)):
-        config.append(torch.Tensor(p.getLinkState(uid, i, 1)[0]))
-    return torch.stack(config)
+def getConfig(uid, jointIds):
+    jointPositions = []
+    for id in jointIds:
+        # print(p.getJointState(uid, id)[0])
+        jointPositions.append(p.getJointState(uid, id)[0])
+    jointPositions = torch.Tensor(jointPositions)
+    return jointPositions
 
-"""
-Moves the robots to their starting position.
-"""
-def moveToStartingPose(uid, jointIds, random_action, steps):
-    print(f"steps: {steps}")
-    for _ in range(steps):
-        p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=random_action)
+def randomInit(uid):
+    # Start ur5 with random positions
+    jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
+    random_positions = []
+    for r in jointsRange:
+        rand = np.random.uniform(r[0], r[1])
+        random_positions.append(rand)
+    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, random_positions)
+    # Give it some time to move there
+    for _ in range(100):
         p.stepSimulation()
+    initState = getConfig(uid, ACTIVE_JOINTS)
+    initCoords = torch.Tensor(p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0])
+    p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])
+    return initState, initCoords
+
+def randomGoal():
+    # Generate random goal state for UR5
+    x = np.random.uniform(-0.7, 0.7)
+    y = np.random.uniform(-0.7, 0.7)
+    z = np.random.uniform(0.1, 0.7)
+    goalCoords = torch.Tensor([x, y, z])
+    p.addUserDebugLine([0,0,0.1], goalCoords, [0,0,1])
+    return goalCoords
 
 def getReward(action, jointIds, robotArm, goalState):
     # print(action)
@@ -127,7 +155,7 @@ def getReward(action, jointIds, robotArm, goalState):
     elbow_penalty = dist(torch.Tensor(p.getLinkState(robotArm, 3)[0]), elbowBefore)
 
     ee_penalty *= 1
-    elbow_penalty *= 10
+    elbow_penalty *= 1
 
     # print(f"ee_penalty: {ee_penalty}")
     # print(f"elbow_penalty: {elbow_penalty}")
@@ -197,30 +225,15 @@ saveRun = []    # Store for training
 saveAction = []
 error = []
 
-# Generate random goal state for UR5
-x = np.random.uniform(-0.7, 0.7)
-y = np.random.uniform(-0.7, 0.7)
-z = np.random.uniform(0.1, 0.7)
-goalState = torch.Tensor([x, y, z])
-p.addUserDebugLine([0,0,0.1], goalState, [0,0,1])
-print(f"\ngoalState: {goalState}\n")
-steps = random.randint(10, 100)
-# ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
-torqueRanges = [70, 120, 66, 55, 53, 53]
-# torqueRanges = [80, 120, 80, 60, 60, 60]
-random_action = []
 
-for aRange in torqueRanges:
-    sign = 1 if random.random() < 0.5 else -1
-    random_action.append(aRange*sign)
-random_action.append(0.0)
-random_action.append(0.0)
-print(f"random_action: {random_action}")
-# random_action = [j1, j2, j3, j4, j5, j6, 0.0, 0.0]
-moveToStartingPose(uid, ACTIVE_JOINTS, random_action, steps)
-print(f"random_action: {random_action}")
-print(f"steps: {steps}")
-print(f"\nstartState: {getState(uid)}")
+goalCoords = randomGoal()
+initState, initCoords = randomInit(uid)
+print()
+print("goalCoords\t", goalCoords)
+print("initState\t", initState)
+print("initCoords\t", initCoords)
+
+
 
 # while 1:
 #     p.stepSimulation()
@@ -256,7 +269,7 @@ for iter in range(Iterations):
             # make sure it's valid by clamping with the mins and maxes
             episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
             # get cost of episode
-            cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalState)
+            cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalCoords)
             # print(cost)
             # exit(0)
             # GRAPH
@@ -319,7 +332,7 @@ for iter in range(Iterations):
 
     # Need to store this for training
     pairs = []
-    pairs.extend(getConfig(uid))
+    pairs.extend(getConfig(uid, ACTIVE_JOINTS))
     pairs.extend(bestAction)
 
     # print(f"Best Action: {bestAction}")
@@ -329,7 +342,7 @@ for iter in range(Iterations):
     p.stepSimulation()
 
     # After applying action, append state2
-    pairs.extend(getConfig(uid))
+    pairs.extend(getConfig(uid, ACTIVE_JOINTS))
     saveRun.append(pairs)
 
 # GRAPH

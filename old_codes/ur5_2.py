@@ -131,24 +131,16 @@ Calculates the cost of an action sequence for the UR5 robot.
 def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests, stateId):
     p.restoreState(stateId)
     actionSeq2 = actionSeq.reshape(H, -1) # Get H action sequences
-    cost = distCost = actionCost = velCost = accCost = 0
+    cost = distCost = velCost = accCost = 0
     for h in range(H):
-        curr_elbow = p.getLinkState(uid, 3)[0]
         st = ur5_getState(actionSeq2[h], uid, jointIds)
         htarg = futureDests[h]
         # END_EFFECTOR_INDEX = 7 # The end effector link index.
         # eePos = p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0]
         # print(f"\nhtarg: {htarg}")
         # print(f"eePos: {eePos}\n")
-        next_elbow = p.getLinkState(uid, 3)[0]
-        distCost = 1 * dist(st, htarg)
-        actionCost = 1 * dist(next_elbow, curr_elbow)
-
-        # print(f"distCost: {distCost}")
-        # print(f"actionCost: {actionCost}")
-
-        cost = cost + distCost + actionCost
-        # if args.verbose: print(f"dist: {dist(st, htarg)}")
+        if args.verbose: print(f"dist: {dist(st, htarg)}")
+        distCost += dist(st, htarg)
     # if args.verbose: print(f"...distCost: {distCost}")
 
     # p.restoreState(stateId)
@@ -170,8 +162,34 @@ def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests, stateId):
     # cost = weight[0] * distCost + weight[1] * accCost - weight[2] * velCost
     # if args.verbose: print(f"...distCost: {weight[0] * distCost}, accCost: {weight[1] * accCost}, velCost: {weight[2] * velCost}")
     # ...distCost: 55.259173514720516, accCost: 2.9334241439482665e-20, velCost: 6.145710074179078e-08
-    # return distCost
-    return cost # The action sequence cost
+    return distCost
+
+# def ur5_actionSeqCost(uid, jointIds, actionSeq, H, futureDests, stateId):
+#     p.restoreState(stateId)
+#     actionSeq2 = actionSeq.reshape(H, -1) # Get H action sequences
+#     cost = distCost = actionCost = velCost = accCost = 0
+#     for h in range(H):
+#         curr_ee = p.getLinkState(uid, END_EFFECTOR_INDEX)[0]
+#         curr_elbow = p.getLinkState(uid, 3)[0]
+
+#         st = ur5_getState(actionSeq2[h], uid, jointIds)
+#         htarg = futureDests[h]
+
+#         next_ee = p.getLinkState(uid, END_EFFECTOR_INDEX)[0]
+#         next_elbow = p.getLinkState(uid, 3)[0]
+
+#         distCost = 1 * dist(st, htarg)
+#         # eeCost = 10 * dist(curr_ee, next_ee)
+#         # elbowCost = 10 * dist(next_elbow, curr_elbow)
+
+#         # print(f"distCost: {distCost}")
+#         # print(f"elbowCost: {elbowCost}")
+#         # print(f"eeCost: {eeCost}")
+
+#         cost = cost + distCost 
+#         # + elbowCost + eeCost
+#     # print(f"totalCost: {cost}")
+#     return cost # The action sequence cost
 
 """
 Loads pybullet environment with a horizontal plane and earth like gravity.
@@ -220,7 +238,7 @@ LOOKAHEAD_T = 2  # s
 EXEC_T = .5      # s
 END_EFFECTOR_INDEX = 7 # The end effector link index.
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
-DISCRETIZED_STEP = 0.005
+DISCRETIZED_STEP = 0.01
 
 def main():
     startTime = datetime.now()
@@ -271,8 +289,8 @@ def main():
     numSegments = int(math.floor(incrementTotal))+1
     stepVector = diffBtwin / numSegments
 
-    print(startState)
-    print(goalState)
+    print(f"startState: {startState}")
+    print(f"goalState: {goalState}")
     # print("===========")
     # print(distTotal)
     # print(diffBtwin)
@@ -287,16 +305,19 @@ def main():
         state += stepVector
         traj.append(np.copy(state))
 
-    print(traj)
+    # print(traj)
+    if args.debug:
+            for pt in range(len(traj)-1):
+                p.addUserDebugLine([0,0,0.1],traj[pt],traj[pt+1])
 
     # exit()
 
     N = numSegments                             # Number of environmental steps.
     G = 220                                     # Number of plans.
-    G = 200
-    H = 20    
+    G = 100
+    H = 10    
     T = 120                                     # Times to update the distribution.
-    T = 80
+    T = 40
     K = int(0.3 * G)                            # Numbers of action sequences to keep.
     print(f"\nN = {N}, G = {G}, H = {H}, T = {T}, K = {K}")
     
@@ -308,7 +329,6 @@ def main():
 
         # Get H future destinations from trajectory
         futureStates = [] # For the UR5 robot only.
-        
         for h in range(H):
             if envStep + h > len(traj) - 1:
                 futureStates.append(traj[(envStep + h)%len(traj)])
@@ -318,7 +338,7 @@ def main():
         mu = torch.zeros(H, len(jointsRange)).flatten()
         
         # sigma = (np.pi * 100) * torch.eye(len(mu))
-        sigma = (np.pi**2) * torch.eye(len(mu))
+        sigma = (np.pi) * torch.eye(len(mu))
         # sigma = 2e5 * torch.eye(len(mu))
         
         if args.verbose: print(f"initial mu:\n{mu}")
@@ -430,46 +450,56 @@ def playback():
     
     loadEnv()
 
-    goalState = [ 0.1988, -0.0352,  0.6358]
-    p.addUserDebugLine([0,0,0.1], goalState, [0,0,1])
-    s0 = [ 1.4018, -0.5394, -0.5875, -0.8265, -3.1231, -1.2301,  0.0077, -0.0093]
+    goalState = [ 0.1906, -0.1944,  0.5458]
+    print(f"goalState: {goalState}")
+    p.addUserDebugLine([0,0,0.1], goalState, [0,0,1]) # Goal Blue
+    s0 = [-0.1438, -1.5832, -1.0491,  1.2731,  0.4458,  1.5433,  0.0222, -0.0122]
 
     ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
     uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
+    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, s0)
+    for _ in range(100):
+        p.stepSimulation() # Give it some time to move there
+
+    # p.addUserDebugLine([0,0,0.1], p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0], [1,0,0]) 
+
+    startState = p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0]
+    print(f"startState: {startState}")
+    print("(-0.09009314922087887, -0.2287897282237295, 0.36754146844896335)")
+    p.addUserDebugLine([0,0,0.1], startState, [1,0,0]) # Start Red
+
+    distTotal = dist(goalState, startState)
+    diffBtwin = np.array(diff(goalState, startState))
+    incrementTotal = distTotal/DISCRETIZED_STEP
+    numSegments = int(math.floor(incrementTotal))+1
+    stepVector = diffBtwin / numSegments
+
+    print(f"startState: {startState}")
+    print(f"goalState: {goalState}")
+    # print("===========")
+    # print(distTotal)
+    # print(diffBtwin)
+    # print(incrementTotal)
+    # print(numSegments)
+    # print(stepVector)
+    
+    traj = []
+    traj.append(np.array(startState))
+    state = np.copy(startState)
+    for _ in range(numSegments):
+        state += stepVector
+        traj.append(np.copy(state))
+
+    # print(traj)
+    if args.debug:
+            for pt in range(len(traj)-1):
+                p.addUserDebugLine([0,0,0.1],traj[pt],traj[pt+1])
     
 
-    # Start ur5 with random positions
-    # jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
-    # random_positions = []
-    # for r in jointsRange:
-    #     rand = np.random.uniform(r[0], r[1])
-    #     random_positions.append(rand)
-    # # print(jointsRange)
-    # print(f"random_positions: {random_positions}")
-    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, s0)
-    # Give it some time to move there
-    for _ in range(100):
-        p.stepSimulation()
-
-    p.addUserDebugLine([0,0,0.1], p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0], [1,0,0])
-
-
     for env_step in range(len(finalActions)):
-        time.sleep(1.)
+        time.sleep(1./25.)
         applyAction(uid, ACTIVE_JOINTS, finalActions[env_step])
         # time.sleep(1./1.)
-
-# def test():
-#     print("======= in test =======")
-#     ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
-#     loadEnv()
-#     uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
-#     maxForces = []
-#     for f in jointsForceRange:
-#         # print(f)
-#         maxForces.append(f[1])
-#     while 1:
-#         applyAction(uid, ACTIVE_JOINTS, torch.mul(torch.tensor(maxForces), 20))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='CS 593-ROB - Project Milestone 2')
@@ -488,3 +518,10 @@ if __name__ == '__main__':
     else:
         # test()
         main()
+
+
+#goalState: tensor([-0.1719, -0.2633,  0.6918])
+#                   -0.1719, -0.2633, 0.6918
+#-0.8971759268367099, -0.13437312626244938, 0.19523257929236304
+#-0.8971759268367099, -0.13437312626244938, 0.19523257929236304
+#-0.8904449250672385, -0.15710953219522544, 0.3307314192647392
