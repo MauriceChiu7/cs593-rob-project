@@ -104,7 +104,7 @@ for _ in range(100):
 
 # print(actions)
 
-with open('../test/run_I300_E10_Eps100.pkl', 'rb') as f:
+with open('../testNNmpc/A1_run_I50_E10_Eps100.pkl', 'rb') as f:
     actions = pickle.load(f)
 
 # A1
