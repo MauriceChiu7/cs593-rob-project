@@ -25,7 +25,7 @@ Link to paper: https://arxiv.org/abs/1806.01242
 A1 Robot Planning Phase:  https://youtu.be/sz_-2mRpAds  <br />
 A1 Robot Plan Execution:  https://youtu.be/USulme13TeM  <br />
 UR5 Robot Planning Phase: https://youtu.be/yiAxxk-3bPQ  <br />
-UR5 Robot Plan Execution: https://youtu.be/xhQ95UoJWm8  <br />s
+UR5 Robot Plan Execution: https://youtu.be/xhQ95UoJWm8  <br />
 
 ### How to run:
 For the UR5 Manipulator:    <br />
