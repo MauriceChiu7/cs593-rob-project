@@ -1,0 +1,37 @@
+scholar-a002.rcac.purdue.edu
+
+----------------------------------------------------------------------------
+  anaconda:
+----------------------------------------------------------------------------
+     Versions:
+        anaconda/5.1.0-py27
+        anaconda/5.1.0-py36
+        anaconda/5.3.1-py27
+        anaconda/5.3.1-py37
+        anaconda/2019.10-py27
+        anaconda/2020.02-py37
+        anaconda/2020.11-py38
+
+----------------------------------------------------------------------------
+  For detailed information about a specific "anaconda" package (including how to load the modules) use the module's full name.
+  Note that names that have a trailing (E) are extensions provided by other modules.
+  For example:
+
+     $ module spider anaconda/2020.11-py38
+----------------------------------------------------------------------------
+
+ 
+
+pybullet build time: Dec  1 2021 18:34:28
+
+generating paths 16 to 31...
+
+/home/chiu93/cs593-rob-project/ur5/SLURM/../ur5pybullet
+Traceback (most recent call last):
+  File "/home/chiu93/cs593-rob-project/ur5/SLURM/generatePathsUr5.py", line 312, in <module>
+    main(i)
+  File "/home/chiu93/cs593-rob-project/ur5/SLURM/generatePathsUr5.py", line 194, in main
+    uid = loadUR5()
+  File "/home/chiu93/cs593-rob-project/ur5/SLURM/generatePathsUr5.py", line 56, in loadUR5
+    os.chdir(path) # Needed to change directory to load the UR5.
+FileNotFoundError: [Errno 2] No such file or directory: '/home/chiu93/cs593-rob-project/ur5/SLURM/../ur5pybullet'
