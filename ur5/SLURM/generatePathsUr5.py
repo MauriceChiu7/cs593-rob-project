@@ -55,7 +55,7 @@ def loadUR5():
     # exit()
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
-    path = f"{os.getcwd()}/.."
+    path = f"{os.getcwd()}/../ur5/SLURM"
     os.chdir(path) # Back to parent directory.
     # Enable collision for all link pairs.
     for l0 in range(p.getNumJoints(uid)):
@@ -305,8 +305,8 @@ def main(path_index):
 
 
 if __name__ == '__main__':
-    start = 16
-    end = 31
+    start = 0
+    end = 16
     print(f"\ngenerating paths {start} to {end}...\n")
     for i in range(start, end):
         main(i)
