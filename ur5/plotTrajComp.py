@@ -11,14 +11,15 @@ colors = ["Orange", "Blue", "Green", "Black", "Red", "Brown", "Olive", "Cyan", "
 grays = ["Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray"]
 
 def main():
+    path = 31
     fig = plt.figure()
     ax = plt.axes(projection='3d')
     ax.set_aspect('auto')
     ax.set_xlim([-0.8,0.8])
     ax.set_ylim([-0.8,0.8])
     ax.set_zlim([-0,0.8])
-    trajFile = "./error/traj.pkl"
-    simFile = "./error/finalEePos.pkl"
+    trajFile = f"./error/traj_{path}.pkl"
+    simFile = f"./error/finalEePos_{path}.pkl"
     with open(trajFile, 'rb') as f:
         traj = pickle.load(f)
     with open(simFile, 'rb') as f:
