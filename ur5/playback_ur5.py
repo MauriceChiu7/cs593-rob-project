@@ -73,9 +73,22 @@ def moveTo(uid, position):
     return initState, initCoords
 
 def playback():
-    with open('./trainingData/ur5sample.pkl', 'rb') as f:
+    path = 31
+    with open(f"./trainingData/ur5sample_{path}.pkl", 'rb') as f:
         tuples = pickle.load(f)
     
+    with open(f"./error/debug_{path}.pkl", 'rb') as f:
+        states = pickle.load(f)
+    
+    # print(states)
+    # initCoords = states["initCoords"]
+    # position = states["initState"]
+    # goalCoords = states["goalCoords"]
+    # print(initCoords)
+    # print(position)
+    # print(goalCoords)
+    # exit()
+
     loadEnv()
     
     uid = loadUR5()
@@ -83,9 +96,9 @@ def playback():
     # goalCoords       tensor([-0.0587, -0.2683,  0.2389])
     # initState        tensor([-0.5888,  0.1401, -2.1266,  0.5458, -1.2973,  1.6745, -0.8886, -0.5362])
     # initCoords       tensor([-0.3674,  0.0948,  0.3818])
-    initCoords = [-0.8004,  0.0398,  0.1112]
-    position = [-0.3764,  0.2559, -0.7015,  0.6558,  0.4870, -0.6955,  0.0625,  0.1451]
-    goalCoords = [-0.1421, -0.4998,  0.5686]
+    initCoords = states["initCoords"]
+    position = states["initState"]
+    goalCoords = states["goalCoords"]
 
     p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])
     p.addUserDebugLine([0,0,0.1], goalCoords, [0,0,1])
