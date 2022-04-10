@@ -171,7 +171,7 @@ def main(rollout_index):
     Horizon = 50
 
     print(f"\nIterations: {Iterations}, Epochs: {Epochs}, Episodes: {Episodes}, Horizon: {Horizon}\n")
-    trainingFolder = f"./trainingData/iter_{Iterations}_epochs_{Epochs}_episodes_{Episodes}_horizon_{Horizon}/"
+    trainingFolder = f"./newtrainingData/iter_{Iterations}_epochs_{Epochs}_episodes_{Episodes}_horizon_{Horizon}/"
     print(f"\ntraining data destination: {trainingFolder}\n")
     # Iterations = 2 # N env steps
     # Epochs = 20 # T
@@ -204,6 +204,7 @@ def main(rollout_index):
         cov = cov.to(torch.device('cuda'))
         # this is what we should be resetting to
         startState = p.saveState()
+        p.restoreState(startState)
         # number of episodes to sample
         currEpsNum = Episodes
         # This is the "memory bank" of episodes we are going to use
@@ -263,6 +264,8 @@ def main(rollout_index):
         # Apply action
         p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, bestAction)
         p.stepSimulation()
+        temp = p.saveState()
+        p.restoreState(temp)
 
         # After applying action, append state2
         pairs.extend(getFinalState(quadruped))
