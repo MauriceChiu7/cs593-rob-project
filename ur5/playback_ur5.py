@@ -26,7 +26,7 @@ def loadEnv():
 Loads the UR5 robot.
 """
 def loadUR5():
-    p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
+    p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=-30, cameraPitch=-35, cameraTargetPosition=(0,0,0))
     path = f"{os.getcwd()}/../ur5pybullet"
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
