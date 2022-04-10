@@ -195,6 +195,7 @@ def main(rollout_index):
         cov = torch.eye(len(mu)) * ((np.pi/2) ** 2)
         # this is what we should be resetting to
         startState = p.saveState()
+        p.restoreState(startState)
         # number of episodes to sample
         currEpsNum = Episodes
         # This is the "memory bank" of episodes we are going to use
@@ -251,6 +252,8 @@ def main(rollout_index):
         # Apply action
         p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, bestAction)
         p.stepSimulation()
+        temp = p.saveState()
+        p.restoreState(temp)
 
         # After applying action, append state2
         pairs.extend(getFinalState(quadruped))
@@ -266,289 +269,290 @@ def main(rollout_index):
         pickle.dump(saveRun, f)
 
 if __name__ == '__main__':
-    if(os.fork()):
-        start = 0
-        end = 9
-    elif(os.fork()):
-        start = 9
-        end = 18
-    elif(os.fork()):
-        start = 18
-        end = 27
-    elif(os.fork()):
-        start = 27
-        end = 36
-    elif(os.fork()):
-        start = 36
-        end = 45
-    elif(os.fork()):
-        start = 45
-        end = 54
-    elif(os.fork()):
-        start = 54
-        end = 63
-    elif(os.fork()):
-        start = 63
-        end = 72
-    elif(os.fork()):
-        start = 72
-        end = 81
-    elif(os.fork()):
-        start = 81
-        end = 90
-    elif(os.fork()):
-        start = 90
-        end = 99
-    elif(os.fork()):
-        start = 99
-        end = 108
-    elif(os.fork()):
-        start = 108
-        end = 117
-    elif(os.fork()):
-        start = 117
-        end = 126
-    elif(os.fork()):
-        start = 126
-        end = 135
-    elif(os.fork()):
-        start = 135
-        end = 144
-    elif(os.fork()):
-        start = 144
-        end = 153
-    elif(os.fork()):
-        start = 153
-        end = 162
-    elif(os.fork()):
-        start = 162
-        end = 171
-    elif(os.fork()):
-        start = 171
-        end = 180
-    elif(os.fork()):
-        start = 180
-        end = 189
-    elif(os.fork()):
-        start = 189
-        end = 198
-    elif(os.fork()):
-        start = 198
-        end = 207
-    elif(os.fork()):
-        start = 207
-        end = 216
-    elif(os.fork()):
-        start = 216
-        end = 225
-    elif(os.fork()):
-        start = 225
-        end = 234
-    elif(os.fork()):
-        start = 234
-        end = 243
-    elif(os.fork()):
-        start = 243
-        end = 252
-    elif(os.fork()):
-        start = 252
-        end = 261
-    elif(os.fork()):
-        start = 261
-        end = 270
-    elif(os.fork()):
-        start = 270
-        end = 279
-    elif(os.fork()):
-        start = 279
-        end = 288
-    elif(os.fork()):
-        start = 288
-        end = 297
-    elif(os.fork()):
-        start = 297
-        end = 306
-    elif(os.fork()):
-        start = 306
-        end = 315
-    elif(os.fork()):
-        start = 315
-        end = 324
-    elif(os.fork()):
-        start = 324
-        end = 333
-    elif(os.fork()):
-        start = 333
-        end = 342
-    elif(os.fork()):
-        start = 342
-        end = 351
-    elif(os.fork()):
-        start = 351
-        end = 360
-    elif(os.fork()):
-        start = 360
-        end = 369
-    elif(os.fork()):
-        start = 369
-        end = 378
-    elif(os.fork()):
-        start = 378
-        end = 387
-    elif(os.fork()):
-        start = 387
-        end = 396
-    elif(os.fork()):
-        start = 396
-        end = 405
-    elif(os.fork()):
-        start = 405
-        end = 414
-    elif(os.fork()):
-        start = 414
-        end = 423
-    elif(os.fork()):
-        start = 423
-        end = 432
-    elif(os.fork()):
-        start = 432
-        end = 441
-    elif(os.fork()):
-        start = 441
-        end = 450
-    elif(os.fork()):
-        start = 450
-        end = 459
-    elif(os.fork()):
-        start = 459
-        end = 468
-    elif(os.fork()):
-        start = 468
-        end = 477
-    elif(os.fork()):
-        start = 477
-        end = 486
-    elif(os.fork()):
-        start = 486
-        end = 495
-    elif(os.fork()):
-        start = 495
-        end = 504
-    elif(os.fork()):
-        start = 504
-        end = 513
-    elif(os.fork()):
-        start = 513
-        end = 522
-    elif(os.fork()):
-        start = 522
-        end = 531
-    elif(os.fork()):
-        start = 531
-        end = 540
-    elif(os.fork()):
-        start = 540
-        end = 549
-    elif(os.fork()):
-        start = 549
-        end = 558
-    elif(os.fork()):
-        start = 558
-        end = 567
-    elif(os.fork()):
-        start = 567
-        end = 576
-    elif(os.fork()):
-        start = 576
-        end = 585
-    elif(os.fork()):
-        start = 585
-        end = 594
-    elif(os.fork()):
-        start = 594
-        end = 603
-    elif(os.fork()):
-        start = 603
-        end = 612
-    elif(os.fork()):
-        start = 612
-        end = 621
-    elif(os.fork()):
-        start = 621
-        end = 630
-    elif(os.fork()):
-        start = 630
-        end = 639
-    elif(os.fork()):
-        start = 639
-        end = 648
-    elif(os.fork()):
-        start = 648
-        end = 657
-    elif(os.fork()):
-        start = 657
-        end = 666
-    elif(os.fork()):
-        start = 666
-        end = 675
-    elif(os.fork()):
-        start = 675
-        end = 684
-    elif(os.fork()):
-        start = 684
-        end = 693
-    elif(os.fork()):
-        start = 693
-        end = 702
-    elif(os.fork()):
-        start = 702
-        end = 711
-    elif(os.fork()):
-        start = 711
-        end = 720
-    elif(os.fork()):
-        start = 720
-        end = 729
-    elif(os.fork()):
-        start = 729
-        end = 738
-    elif(os.fork()):
-        start = 738
-        end = 747
-    elif(os.fork()):
-        start = 747
-        end = 756
-    elif(os.fork()):
-        start = 756
-        end = 765
-    elif(os.fork()):
-        start = 765
-        end = 774
-    elif(os.fork()):
-        start = 774
-        end = 783
-    elif(os.fork()):
-        start = 783
-        end = 792
-    elif(os.fork()):
-        start = 792
-        end = 801
-    elif(os.fork()):
-        start = 801
-        end = 810
-    elif(os.fork()):
-        start = 810
-        end = 819
-    elif(os.fork()):
-        start = 819
-        end = 828
-    elif(os.fork()):
-        start = 828
-        end = 837
-    else:
-        start = 837
-        end = 846
-    
+    # if(os.fork()):
+    #     start = 0
+    #     end = 9
+    # elif(os.fork()):
+    #     start = 9
+    #     end = 18
+    # elif(os.fork()):
+    #     start = 18
+    #     end = 27
+    # elif(os.fork()):
+    #     start = 27
+    #     end = 36
+    # elif(os.fork()):
+    #     start = 36
+    #     end = 45
+    # elif(os.fork()):
+    #     start = 45
+    #     end = 54
+    # elif(os.fork()):
+    #     start = 54
+    #     end = 63
+    # elif(os.fork()):
+    #     start = 63
+    #     end = 72
+    # elif(os.fork()):
+    #     start = 72
+    #     end = 81
+    # elif(os.fork()):
+    #     start = 81
+    #     end = 90
+    # elif(os.fork()):
+    #     start = 90
+    #     end = 99
+    # elif(os.fork()):
+    #     start = 99
+    #     end = 108
+    # elif(os.fork()):
+    #     start = 108
+    #     end = 117
+    # elif(os.fork()):
+    #     start = 117
+    #     end = 126
+    # elif(os.fork()):
+    #     start = 126
+    #     end = 135
+    # elif(os.fork()):
+    #     start = 135
+    #     end = 144
+    # elif(os.fork()):
+    #     start = 144
+    #     end = 153
+    # elif(os.fork()):
+    #     start = 153
+    #     end = 162
+    # elif(os.fork()):
+    #     start = 162
+    #     end = 171
+    # elif(os.fork()):
+    #     start = 171
+    #     end = 180
+    # elif(os.fork()):
+    #     start = 180
+    #     end = 189
+    # elif(os.fork()):
+    #     start = 189
+    #     end = 198
+    # elif(os.fork()):
+    #     start = 198
+    #     end = 207
+    # elif(os.fork()):
+    #     start = 207
+    #     end = 216
+    # elif(os.fork()):
+    #     start = 216
+    #     end = 225
+    # elif(os.fork()):
+    #     start = 225
+    #     end = 234
+    # elif(os.fork()):
+    #     start = 234
+    #     end = 243
+    # elif(os.fork()):
+    #     start = 243
+    #     end = 252
+    # elif(os.fork()):
+    #     start = 252
+    #     end = 261
+    # elif(os.fork()):
+    #     start = 261
+    #     end = 270
+    # elif(os.fork()):
+    #     start = 270
+    #     end = 279
+    # elif(os.fork()):
+    #     start = 279
+    #     end = 288
+    # elif(os.fork()):
+    #     start = 288
+    #     end = 297
+    # elif(os.fork()):
+    #     start = 297
+    #     end = 306
+    # elif(os.fork()):
+    #     start = 306
+    #     end = 315
+    # elif(os.fork()):
+    #     start = 315
+    #     end = 324
+    # elif(os.fork()):
+    #     start = 324
+    #     end = 333
+    # elif(os.fork()):
+    #     start = 333
+    #     end = 342
+    # elif(os.fork()):
+    #     start = 342
+    #     end = 351
+    # elif(os.fork()):
+    #     start = 351
+    #     end = 360
+    # elif(os.fork()):
+    #     start = 360
+    #     end = 369
+    # elif(os.fork()):
+    #     start = 369
+    #     end = 378
+    # elif(os.fork()):
+    #     start = 378
+    #     end = 387
+    # elif(os.fork()):
+    #     start = 387
+    #     end = 396
+    # elif(os.fork()):
+    #     start = 396
+    #     end = 405
+    # elif(os.fork()):
+    #     start = 405
+    #     end = 414
+    # elif(os.fork()):
+    #     start = 414
+    #     end = 423
+    # elif(os.fork()):
+    #     start = 423
+    #     end = 432
+    # elif(os.fork()):
+    #     start = 432
+    #     end = 441
+    # elif(os.fork()):
+    #     start = 441
+    #     end = 450
+    # elif(os.fork()):
+    #     start = 450
+    #     end = 459
+    # elif(os.fork()):
+    #     start = 459
+    #     end = 468
+    # elif(os.fork()):
+    #     start = 468
+    #     end = 477
+    # elif(os.fork()):
+    #     start = 477
+    #     end = 486
+    # elif(os.fork()):
+    #     start = 486
+    #     end = 495
+    # elif(os.fork()):
+    #     start = 495
+    #     end = 504
+    # elif(os.fork()):
+    #     start = 504
+    #     end = 513
+    # elif(os.fork()):
+    #     start = 513
+    #     end = 522
+    # elif(os.fork()):
+    #     start = 522
+    #     end = 531
+    # elif(os.fork()):
+    #     start = 531
+    #     end = 540
+    # elif(os.fork()):
+    #     start = 540
+    #     end = 549
+    # elif(os.fork()):
+    #     start = 549
+    #     end = 558
+    # elif(os.fork()):
+    #     start = 558
+    #     end = 567
+    # elif(os.fork()):
+    #     start = 567
+    #     end = 576
+    # elif(os.fork()):
+    #     start = 576
+    #     end = 585
+    # elif(os.fork()):
+    #     start = 585
+    #     end = 594
+    # elif(os.fork()):
+    #     start = 594
+    #     end = 603
+    # elif(os.fork()):
+    #     start = 603
+    #     end = 612
+    # elif(os.fork()):
+    #     start = 612
+    #     end = 621
+    # elif(os.fork()):
+    #     start = 621
+    #     end = 630
+    # elif(os.fork()):
+    #     start = 630
+    #     end = 639
+    # elif(os.fork()):
+    #     start = 639
+    #     end = 648
+    # elif(os.fork()):
+    #     start = 648
+    #     end = 657
+    # elif(os.fork()):
+    #     start = 657
+    #     end = 666
+    # elif(os.fork()):
+    #     start = 666
+    #     end = 675
+    # elif(os.fork()):
+    #     start = 675
+    #     end = 684
+    # elif(os.fork()):
+    #     start = 684
+    #     end = 693
+    # elif(os.fork()):
+    #     start = 693
+    #     end = 702
+    # elif(os.fork()):
+    #     start = 702
+    #     end = 711
+    # elif(os.fork()):
+    #     start = 711
+    #     end = 720
+    # elif(os.fork()):
+    #     start = 720
+    #     end = 729
+    # elif(os.fork()):
+    #     start = 729
+    #     end = 738
+    # elif(os.fork()):
+    #     start = 738
+    #     end = 747
+    # elif(os.fork()):
+    #     start = 747
+    #     end = 756
+    # elif(os.fork()):
+    #     start = 756
+    #     end = 765
+    # elif(os.fork()):
+    #     start = 765
+    #     end = 774
+    # elif(os.fork()):
+    #     start = 774
+    #     end = 783
+    # elif(os.fork()):
+    #     start = 783
+    #     end = 792
+    # elif(os.fork()):
+    #     start = 792
+    #     end = 801
+    # elif(os.fork()):
+    #     start = 801
+    #     end = 810
+    # elif(os.fork()):
+    #     start = 810
+    #     end = 819
+    # elif(os.fork()):
+    #     start = 819
+    #     end = 828
+    # elif(os.fork()):
+    #     start = 828
+    #     end = 837
+    # else:
+    #     start = 837
+    #     end = 846
+    start = 31
+    end = 51
     print(f"\ngenerating paths {start} to {end}...\n")
     for i in range(start, end):
         main(i)

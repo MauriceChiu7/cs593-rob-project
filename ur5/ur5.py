@@ -6,6 +6,7 @@ import numpy as np
 import math
 import pickle
 import time
+import random
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
 END_EFFECTOR_INDEX = 7 # The end effector link index.
@@ -55,7 +56,7 @@ def loadUR5():
     # exit()
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
-    path = f"{os.getcwd()}/.."
+    path = f"{os.getcwd()}/../ur5"
     os.chdir(path) # Back to parent directory.
     # Enable collision for all link pairs.
     for l0 in range(p.getNumJoints(uid)):
@@ -183,12 +184,33 @@ def applyAction(uid, action):
         p.stepSimulation()
 
 def main():
+    torch_seed = np.random.randint(low=0, high=1000)
+    np_seed = np.random.randint(low=0, high=1000)
+    py_seed = np.random.randint(low=0, high=1000)
+    torch.manual_seed(torch_seed)
+    np.random.seed(np_seed)
+    random.seed(py_seed)
+
+    trainingFolder = "./trainingData/"
+    errorFolder = "./error/"
+    if not os.path.exists(trainingFolder):
+        os.makedirs(trainingFolder)
+    if not os.path.exists(errorFolder):
+        os.makedirs(errorFolder)
+    
     loadEnv()
     uid = loadUR5()
     jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
 
     goalCoords = randomGoal()
     initState, initCoords = randomInit(uid)
+
+    debug = {
+        'goalCoords': goalCoords,
+        'initState': initState,
+        'initCoords': initCoords
+    }
+
     traj = makeTrajectory(initCoords, goalCoords)
     print("initCoords:\t", initCoords)
     print("initState:\t", initState)
@@ -273,20 +295,16 @@ def main():
     finalEePos = np.array(finalEePos)
     traj = np.array(traj)
 
-    trainingFolder = "./trainingData/"
-    errorFolder = "./error/"
-    if not os.path.exists(trainingFolder):
-        os.makedirs(trainingFolder)
-    if not os.path.exists(errorFolder):
-        os.makedirs(errorFolder)
-
-    with open(trainingFolder + "ur5sample.pkl", 'wb') as f:
+    with open(trainingFolder + f"ur5sample.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
 
-    with open(errorFolder + "finalEePos.pkl", 'wb') as f:
+    with open(errorFolder + f"debug.pkl", 'wb') as f:
+        pickle.dump(debug, f)
+
+    with open(errorFolder + f"finalEePos.pkl", 'wb') as f:
         pickle.dump(finalEePos, f)
 
-    with open(errorFolder + "traj.pkl", 'wb') as f:
+    with open(errorFolder + f"traj.pkl", 'wb') as f:
         pickle.dump(traj, f)
 
 

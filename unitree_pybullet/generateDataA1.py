@@ -165,7 +165,7 @@ def main(rollout_index):
 
     maxForceId, quadruped, jointIds = loadDog(pos, yaw)
 
-    Iterations = 300
+    Iterations = 100
     Epochs = 10
     Episodes = 100
     Horizon = 50

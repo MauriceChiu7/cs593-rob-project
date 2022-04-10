@@ -6,6 +6,7 @@ import numpy as np
 import math
 import pickle
 import sys
+import random
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
 END_EFFECTOR_INDEX = 7 # The end effector link index.
@@ -183,6 +184,13 @@ def applyAction(uid, action):
         p.stepSimulation()
 
 def main(path_index):
+    torch_seed = np.random.randint(low=0, high=1000)
+    np_seed = np.random.randint(low=0, high=1000)
+    py_seed = np.random.randint(low=0, high=1000)
+    torch.manual_seed(torch_seed)
+    np.random.seed(np_seed)
+    random.seed(py_seed)
+
     trainingFolder = "./trainingData/"
     errorFolder = "./error/"
     if not os.path.exists(trainingFolder):
@@ -305,8 +313,8 @@ def main(path_index):
 
 
 if __name__ == '__main__':
-    start = 0
-    end = 16
+    start = 16
+    end = 31
     print(f"\ngenerating paths {start} to {end}...\n")
     for i in range(start, end):
         main(i)
