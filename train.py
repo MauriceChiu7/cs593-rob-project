@@ -27,7 +27,7 @@ class NeuralNetwork(nn.Module):
 
 # TODO: normalize inputs and outputs
 def train(args):
-    print("Training...")
+    print(f"Training...from {args.training_folder}")
     # Edit for size of input
     if args.robot == "a1":
         stateLength = 15
@@ -40,9 +40,10 @@ def train(args):
     tups = None
     allData = []
 
-    # Read through training directory
+    # Read through trainingData
     _, _, files = next(os.walk(args.training_folder))
     for fi in files:
+        print(fi)
         # Open every file and combine the state_action pairs
         currName = args.training_folder + fi
         with open(currName, 'rb') as f:
@@ -52,6 +53,19 @@ def train(args):
         for i in range(len(tups)-1):
             tups[i][-stateLength:] = tups[i+1][:stateLength]
         tups = tups[:-1]
+
+        allData.extend(tups)
+
+    print("NEXT FOLDER:")
+    # Read through newtrainingData
+    a = "./unitree_pybullet/newtrainingData/iter_100_epochs_10_episodes_100_horizon_50/"
+    _, _, files = next(os.walk(a))
+    for fi in files:
+        print(fi)
+        # Open every file and combine the state_action pairs
+        currName = a + fi
+        with open(currName, 'rb') as f:
+            tups = pickle.load(f)
 
         allData.extend(tups)
 
@@ -83,7 +97,7 @@ def train(args):
         os.makedirs(modelFolder)
     
     if args.robot == "a1":
-        torch.save(neuralNet.fc.state_dict(), modelFolder + "A1_model_3.pt")
+        torch.save(neuralNet.fc.state_dict(), modelFolder + "A1_model_5.pt")
     else:   # UR5
         torch.save(neuralNet.fc.state_dict(), modelFolder + "UR5_model.pt")
 
@@ -166,7 +180,51 @@ def test(args):
     plt.plot(allMSE, marker='o')
     plt.title(t)
     plt.show()
-  
+
+
+def getNNPredStates(args):
+    print("Predicting States...")
+    # Load Neural Network model to test
+    neuralNet, stateLength, actionLength = loadNN(args)
+
+    # Open testData
+    tups = None
+
+    allPredActions = []
+
+    # Read through test directory
+    _, _, files = next(os.walk(args.testing_folder))
+    for fi in files:
+        # Open every file and combine the state_action pairs
+        print(fi)
+        currName = args.testing_folder + fi
+        with open(currName, 'rb') as f:
+            tups = pickle.load(f)
+
+        # Need to update the state1's and get rid of the last pair bc nothing to compare with
+        for i in range(len(tups)-1):
+            tups[i][-stateLength:] = tups[i+1][:stateLength]
+        tups = tups[:-1]
+
+        for t in tups:
+            state_action = t[:stateLength+actionLength]
+            nnTarget = t[stateLength+actionLength:]
+
+            # Pass into Neural Net and get MSE Loss
+            nnPred = neuralNet.forward(torch.Tensor(state_action))
+            allPredActions.append(nnPred.tolist())
+
+    
+    # Save action states
+    folder = "./modelPredStates/"
+    if not os.path.exists(folder):
+        # create directory if not exist
+        os.makedirs(folder)
+    
+    with open(folder + 'A1_model_3_states_' + fi, 'wb') as f:
+        pickle.dump(allPredActions, f)
+
+
 
 if __name__ == '__main__':
     Iterations = 300
@@ -179,8 +237,8 @@ if __name__ == '__main__':
     testingFolder = f"./unitree_pybullet/testData/iter_{Iterations}_epochs_{Epochs}_episodes_{Episodes}_horizon_{Horizon}/"
 
     parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')
-    parser.add_argument('--mode', type=str, default="test", help='test or train')
-    parser.add_argument('--robot', type=str, help='robot type')
+    parser.add_argument('--mode', type=str, default="pred", help='test or train')
+    parser.add_argument('--robot', type=str, default="a1", help='robot type')
 
     parser.add_argument('--model-folder', type=str, default=modelFolder, help="path to model")
     parser.add_argument('--testing-folder', type=str, default=testingFolder, help='path to training folder')
@@ -189,5 +247,7 @@ if __name__ == '__main__':
     
     if args.mode == "test":
         test(args)
-    else:
+    elif args.mode == "train":
         train(args)
+    elif args.mode == "pred":
+        getNNPredStates(args)

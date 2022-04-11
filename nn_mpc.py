@@ -1,4 +1,3 @@
-from random import getstate
 import torch
 import numpy as np
 import math
@@ -61,8 +60,12 @@ def getWeightedState(nnPredState):
 
     # Ideal height for dog to maintain
     global robotHeight
+    np_seed = np.random.randint(low=0, high=1000)
+    np.random.seed(np_seed)
+    goal_x = np.random.uniform(low=-10, high=10)
+    goal_y = np.random.uniform(low=-10, high=10)
     # Goal point for dog to reach
-    goalPoint = [10, 0, robotHeight]
+    goalPoint = [goal_x, goal_y, robotHeight]
     distance = math.dist(base_pos, goalPoint)**2
     heightErr = abs(robotHeight - base_pos[2])
 
@@ -133,13 +136,17 @@ def main(args):
             0.012731, 0.002186, 0.48051499999999997     # Floating base
         ]
     else:   # ur5
+        jointIds = [1,2,3,4,5,6,8,9]
+        jointMins = []
+        jointMaxes = []
+        initialState = []
         pass
 
     # Initialize variables
-    Iterations = 48
-    Epochs = 10
-    Episodes = 100
-    Horizon = 50
+    Iterations = 75
+    Epochs = 8
+    Episodes = 50
+    Horizon = 80
     TopKEps = int(0.3*Episodes)
     numJoints = len(jointIds)
     jointMins = jointMins*Horizon
@@ -203,16 +210,16 @@ def main(args):
         os.makedirs(folder)
 
     print("DONE!!!!!")
-    with open(folder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
+    with open(folder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}_model4.pkl", 'wb') as f:
         pickle.dump(bestActions, f)
 
 
 if __name__ == '__main__':
-    modelFolder = "./models/A1_model_3.pt"
+    modelFolder = "./models/A1_model_4.pt"
 
     parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')
     parser.add_argument('--model-folder', type=str, default=modelFolder, help="path to model")
-    parser.add_argument('--robot', type=str, help='robot type')
+    parser.add_argument('--robot', type=str, default="a1", help='robot type')
     args = parser.parse_args()
     
     main(args)
