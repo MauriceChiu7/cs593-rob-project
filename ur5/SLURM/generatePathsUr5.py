@@ -103,7 +103,7 @@ def randomInit(uid):
         random_positions.append(rand)
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, random_positions)
     # Give it some time to move there
-    for _ in range(SIM_STEPS):
+    for _ in range(100):
         p.stepSimulation()
     initState = getConfig(uid, ACTIVE_JOINTS)
     initCoords = torch.Tensor(p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0])
@@ -313,8 +313,8 @@ def main(path_index):
 
 
 if __name__ == '__main__':
-    start = 2
-    end = 5
+    start = 5
+    end = 8
     print(f"\ngenerating paths {start} to {end}...\n")
     for i in range(start, end):
         main(i)
