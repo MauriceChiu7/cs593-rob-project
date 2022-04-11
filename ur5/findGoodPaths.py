@@ -26,17 +26,19 @@ for filename in os.listdir("./trainingData"):
 
     print(f"{filename} has MSE: {error}")
 
-    fig = plt.figure()
-    ax = plt.axes(projection='3d')
-    ax.set_aspect('auto')
-    ax.set_xlim([-0.8,0.8])
-    ax.set_ylim([-0.8,0.8])
-    ax.set_zlim([-0,0.8])
-    ax.scatter3D(traj[:,0], traj[:,1], traj[:,2], c='green')
-    ax.scatter3D(sim[:,0], sim[:,1], sim[:,2], c='red')
-    plt.figtext(0.1, 0.95, f"path {path}")
-    plt.savefig(f"./figures/traj_comp_{path}")
-    plt.close()
+    if not os.path.exists(f"./figures/traj_comp_{path}.png"):
+        print(f"creating figure for path {path}")
+        fig = plt.figure()
+        ax = plt.axes(projection='3d')
+        ax.set_aspect('auto')
+        ax.set_xlim([-0.8,0.8])
+        ax.set_ylim([-0.8,0.8])
+        ax.set_zlim([-0,0.8])
+        ax.scatter3D(traj[:,0], traj[:,1], traj[:,2], c='green')
+        ax.scatter3D(sim[:,0], sim[:,1], sim[:,2], c='red')
+        plt.figtext(0.1, 0.95, f"path {path}")
+        plt.savefig(f"./figures/traj_comp_{path}.png")
+        plt.close()
 
     if error <= 0.02:
         goodPaths.append(int(path))
