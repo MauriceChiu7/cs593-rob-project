@@ -313,8 +313,8 @@ def main(path_index):
 
 
 if __name__ == '__main__':
-    start = 5
-    end = 8
+    start = 7
+    end = 10
     print(f"\ngenerating paths {start} to {end}...\n")
     for i in range(start, end):
         main(i)
