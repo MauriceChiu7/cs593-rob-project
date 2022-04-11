@@ -11,7 +11,7 @@ colors = ["Orange", "Blue", "Green", "Black", "Red", "Brown", "Olive", "Cyan", "
 grays = ["Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray"]
 
 def main():
-    path = 31
+    path = 37
     fig = plt.figure()
     ax = plt.axes(projection='3d')
     ax.set_aspect('auto')
@@ -28,6 +28,7 @@ def main():
     print(sim)
     ax.scatter3D(traj[:,0], traj[:,1], traj[:,2], c='green')
     ax.scatter3D(sim[:,0], sim[:,1], sim[:,2], c='red')
+    plt.figtext(0.1, 0.95, f"path {path}")
     plt.show()
 
 main()
