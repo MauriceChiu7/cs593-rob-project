@@ -1,0 +1,28 @@
+scholar-a005.rcac.purdue.edu
+
+----------------------------------------------------------------------------
+  anaconda:
+----------------------------------------------------------------------------
+     Versions:
+        anaconda/5.1.0-py27
+        anaconda/5.1.0-py36
+        anaconda/5.3.1-py27
+        anaconda/5.3.1-py37
+        anaconda/2019.10-py27
+        anaconda/2020.02-py37
+        anaconda/2020.11-py38
+
+----------------------------------------------------------------------------
+  For detailed information about a specific "anaconda" package (including how to load the modules) use the module's full name.
+  Note that names that have a trailing (E) are extensions provided by other modules.
+  For example:
+
+     $ module spider anaconda/2020.11-py38
+----------------------------------------------------------------------------
+
+ 
+
+pybullet build time: Dec  1 2021 18:34:28
+b3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+ee_link
