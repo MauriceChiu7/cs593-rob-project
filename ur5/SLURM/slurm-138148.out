@@ -25,6 +25,4 @@ scholar-a005.rcac.purdue.edu
 pybullet build time: Dec  1 2021 18:34:28
 b3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
 No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
-ee_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
-No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
-ee_linkslurmstepd: error: *** JOB 138101 ON scholar-a005 CANCELLED AT 2022-04-11T23:08:03 ***
+ee_link

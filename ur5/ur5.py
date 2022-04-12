@@ -307,7 +307,7 @@ def main():
     with open(errorFolder + f"traj.pkl", 'wb') as f:
         pickle.dump(traj, f)
 
-
+    p.disconnect()
     # while 1:
     #     p.stepSimulation()
 
