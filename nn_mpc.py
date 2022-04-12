@@ -25,9 +25,9 @@ def loadNN(args):
     neuralNet = nn.Sequential(
                     nn.Linear(stateLength + actionLength, 256),
                     nn.ReLU(),
-                    nn.Linear(256, 128),
+                    nn.Linear(256, 256),
                     nn.ReLU(),
-                    nn.Linear(128, stateLength),
+                    nn.Linear(256, stateLength),
                 )
     # Edit this when done with training
     neuralNet.load_state_dict(torch.load(args.model_folder))
@@ -60,12 +60,12 @@ def getWeightedState(nnPredState):
 
     # Ideal height for dog to maintain
     global robotHeight
-    np_seed = np.random.randint(low=0, high=1000)
-    np.random.seed(np_seed)
-    goal_x = np.random.uniform(low=-10, high=10)
-    goal_y = np.random.uniform(low=-10, high=10)
+    # np_seed = np.random.randint(low=0, high=1000)
+    # np.random.seed(np_seed)
+    # goal_x = np.random.uniform(low=-10, high=10)
+    # goal_y = np.random.uniform(low=-10, high=10)
     # Goal point for dog to reach
-    goalPoint = [goal_x, goal_y, robotHeight]
+    goalPoint = [10, 0, robotHeight]
     distance = math.dist(base_pos, goalPoint)**2
     heightErr = abs(robotHeight - base_pos[2])
 
@@ -74,8 +74,8 @@ def getWeightedState(nnPredState):
 
 
 def getReward(state):
-    w = torch.Tensor([2000,2000,300,300,300,300,2,3000])
-    reward = (w*state). sum().numpy()
+    w = torch.Tensor([10000, 10000,10000,10000,900,900,2,3000])
+    reward = (w*state).sum().numpy()
     if state[-1] > 0.25:
         reward += 1000
     return reward
@@ -143,9 +143,9 @@ def main(args):
         pass
 
     # Initialize variables
-    Iterations = 75
-    Epochs = 8
-    Episodes = 50
+    Iterations = 51
+    Epochs = 6
+    Episodes = 80
     Horizon = 80
     TopKEps = int(0.3*Episodes)
     numJoints = len(jointIds)
@@ -210,12 +210,12 @@ def main(args):
         os.makedirs(folder)
 
     print("DONE!!!!!")
-    with open(folder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}_model4.pkl", 'wb') as f:
+    with open(folder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}_H{Horizon}_model_A1_model_gb_layers2_path14_epoch20.pkl", 'wb') as f:
         pickle.dump(bestActions, f)
 
 
 if __name__ == '__main__':
-    modelFolder = "./models/A1_model_4.pt"
+    modelFolder = "./models/A1_model_gb_layers2_path14_epoch20.pt"
 
     parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')
     parser.add_argument('--model-folder', type=str, default=modelFolder, help="path to model")

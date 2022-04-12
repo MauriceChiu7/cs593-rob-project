@@ -36,7 +36,7 @@ def getReward(action, jointIds, quadruped):
     # p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
     # p.stepSimulation()
     state = getState(quadruped)
-    w = torch.Tensor([2000,2000,300,300,300,300,2,3000])
+    w = torch.Tensor([2000,2000,2000,2000,300,300,2,3000])
     reward = (w*state).sum().numpy()
     if state[-1] > 0.25:
         reward += 1000
@@ -104,18 +104,48 @@ for _ in range(100):
 
 # print(actions)
 
-with open('../testNNmpc/A1_run_I50_E10_Eps100.pkl', 'rb') as f:
+# PLAYBACK ACTIONS
+# with open('../testNNmpc/A1_run_I60_E5_Eps100_H100_model_A1_model_layers2_path51_epoch10.pkl', 'rb') as f:
+#     actions = pickle.load(f)
+
+# with open('../testNNmpc/A1_run_I62_E5_Eps80_H80_model_A1_model_layers2_path51_epoch10.pkl', 'rb') as f:
+#     actions = pickle.load(f)
+
+# with open('../testNNmpc/A1_run_I100_E2_Eps40_H80_model_A1_model_layers2_path51_epoch10.pkl', 'rb') as f:
+#     actions = pickle.load(f)
+
+with open('../testNNmpc/A1_run_I51_E6_Eps80_H80_model_A1_model_gb_layers2_path14_epoch20.pkl', 'rb') as f:
     actions = pickle.load(f)
+
 
 # A1
 numJoints = 12
 
-for i in range(int(3600/12)):
+for i in range(int(len(actions)/12)):
     start = i*numJoints
     end = start + numJoints
     action = actions[start:end]
     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
     p.stepSimulation()
     # print(getState(quadruped))
-    print(getReward(action, jointIds, quadruped))
-    time.sleep(0.05)
+    # print(getReward(action, jointIds, quadruped))
+    time.sleep(0.1)
+
+
+# PLAYBACK Ground Truth DATA
+# Iterations = 300
+# Epochs = 10
+# Episodes = 100
+# Horizon = 50
+# with open("./newtrainingData/iter_100_epochs_10_episodes_100_horizon_50/sample_901.pkl", 'rb') as f:
+#     actions = pickle.load(f)
+
+# stateLength = 15
+# actionLength = 12
+
+
+# for t in actions:
+#     action = t[stateLength:stateLength + actionLength]
+#     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
+#     p.stepSimulation()
+#     time.sleep(0.1)
