@@ -134,9 +134,9 @@ def main(args):
         pass
 
     # Initialize variables
-    Iterations = 100
+    Iterations = 15
     Epochs = 2
-    Episodes = 70
+    Episodes = 20
     Horizon = 50
     TopKEps = int(0.2*Episodes)
     numJoints = len(jointIds)
@@ -145,6 +145,7 @@ def main(args):
     jointMins = torch.Tensor(jointMins)
     jointMaxes = torch.Tensor(jointMaxes)
     bestActions = []
+    centerTraj = []
 
     print("RUNNING MPC ...")
     # MPC
@@ -196,6 +197,7 @@ def main(args):
         # Set the new state
         initialState = getStateFromNN(neuralNet, epsMem[0][0][0:numJoints], initialState).tolist()
         print(f"AT ITERATION {iter} WE HAVE CENTER AT ({initialState[12:]})")
+        centerTraj.append(initialState[12:])
 
     folder = f"./multNNMPC/"
     if not os.path.exists(folder):
@@ -205,6 +207,15 @@ def main(args):
     print("DONE!!!!!")
     with open(folder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
         pickle.dump(bestActions, f)
+    
+    trajFolder = f"./trajectories/"
+    if not os.path.exists(trajFolder):
+        # create directory if not exist
+        os.makedirs(trajFolder)
+
+    with open(trajFolder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}_NNPREDICTED.pkl", 'wb') as f:
+        pickle.dump(centerTraj, f)
+
 
 
 if __name__ == '__main__':
