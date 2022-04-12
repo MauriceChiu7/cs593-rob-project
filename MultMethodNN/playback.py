@@ -5,6 +5,7 @@ import time
 import numpy as np
 import math
 import pickle
+import os
 
 robotHeight = 0.420393
 
@@ -108,11 +109,13 @@ for _ in range(100):
 # exit()
 
 # THIS IS FOR PLAYBACK FROM THE TESTNNMPC FOLDER
+folder = 'multNNMPC/'
+fileName = 'A1_run_I100_E2_Eps70.pkl'
 
-with open('multNNMPC/A1_run_I100_E2_Eps70.pkl', 'rb') as f:
+with open(folder+fileName, 'rb') as f:
     actions = pickle.load(f)
 
-
+centerTrajectory = []
 length = int(len(actions)/12)
 for x in range(length):
     m = x+1
@@ -121,8 +124,17 @@ for x in range(length):
     # print(getState(quadruped))
     # print(getReward(action, jointIds, quadruped))
     time.sleep(0.15)
+    centerTrajectory.append(p.getLinkState(quadruped, 0)[0])
 
+trajPath = 'trajectories/'
+if not os.path.exists(trajPath):
+    # create directory if not exist
+    os.makedirs(trajPath)
 
+trajFile = trajPath + fileName + "_ACTUAL"
+
+with open(trajFile, 'wb') as f:
+    pickle.dump(centerTrajectory, f)
 
 # THIS IS FOR PLAYBACK FROM THE ACTIONS FOLDER:
 
