@@ -71,8 +71,7 @@ def train():
     with open(f'{folder}MULT{mult}_run_I{iterations}_E{epochs}_Eps{episodes}.pkl', 'rb') as f:
         allData = pickle.load(f)
     print("FINISHED LOADING DATA!")
-    print(allData[0][:15])
-    exit()
+
     print("TRAINING NEURAL NET ... ")
     stateLength = 15
     actionLength = 12
