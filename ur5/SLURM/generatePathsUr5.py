@@ -38,13 +38,14 @@ def dist(p1, p2):
 Loads pybullet environment with a horizontal plane and earth like gravity.
 """
 def loadEnv():
-    p.connect(p.DIRECT) 
+    clientId = p.connect(p.DIRECT) 
     # p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     p.setGravity(0, 0, -9.8)
     # p.setTimeStep(1./50.)
     p.setTimeStep(1./CTL_FREQ/SIM_STEPS)
+    return clientId
 
 """
 Loads the UR5 robot.
@@ -198,7 +199,7 @@ def main(path_index):
     if not os.path.exists(errorFolder):
         os.makedirs(errorFolder)
     
-    loadEnv()
+    clientId = loadEnv()
     uid = loadUR5()
     jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
 
@@ -307,14 +308,14 @@ def main(path_index):
     with open(errorFolder + f"traj_{path_index}.pkl", 'wb') as f:
         pickle.dump(traj, f)
 
-
+    p.disconnect(clientId)
     # while 1:
     #     p.stepSimulation()
 
 
 if __name__ == '__main__':
-    start = 23
-    end = 26
+    start = 29
+    end = 31
     print(f"\ngenerating paths {start} to {end}...\n")
     for i in range(start, end):
         main(i)
