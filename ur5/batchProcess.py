@@ -199,39 +199,42 @@ def main():
     if not os.path.exists(trainingFolder):
         os.makedirs(trainingFolder)
     
+    print("number of files: ", len(os.listdir("./trainingDataWithEE")))
+
     for filename in os.listdir("./trainingData"):
         print(filename)
         
         path_index = filename.split("_")[1].split(".")[0]
+        if not os.path.exists(f"./trainingDataWithEE/ur5sample_{path_index}.pkl"):
         
-        pathName = f"./trainingData/{filename}"
-        with open(pathName, 'rb') as f:
-            tuples = pickle.load(f)
-        
-        loadEnv()
-        uid = loadUR5()
-        saveRun = []
-        for tup in tuples:
-            prev_state = np.array(tup[0:8])
-            action = np.array(tup[8:16])
-            next_state = np.array(tup[16:24])
+            pathName = f"./trainingData/{filename}"
+            with open(pathName, 'rb') as f:
+                tuples = pickle.load(f)
+            
+            loadEnv()
+            uid = loadUR5()
+            saveRun = []
+            for tup in tuples:
+                prev_state = np.array(tup[0:8])
+                action = np.array(tup[8:16])
+                next_state = np.array(tup[16:24])
 
-            # print(prev_state)
-            # print(action)
-            # print(next_state)
+                # print(prev_state)
+                # print(action)
+                # print(next_state)
 
-            pairs = []
+                pairs = []
 
-            newPrevConfig = getConfigFromState(uid, prev_state)
-            pairs.extend(newPrevConfig)
-            pairs.extend(action)
-            newNextConfig = getConfigFromState(uid, next_state)
-            pairs.extend(newNextConfig)
+                newPrevConfig = getConfigFromState(uid, prev_state)
+                pairs.extend(newPrevConfig)
+                pairs.extend(action)
+                newNextConfig = getConfigFromState(uid, next_state)
+                pairs.extend(newNextConfig)
 
-            saveRun.append(pairs)
+                saveRun.append(pairs)
 
-            with open(os.path.join(trainingFolder, f"ur5sample_{path_index}.pkl"), 'wb') as f:
-                pickle.dump(saveRun, f)
+                with open(os.path.join(trainingFolder, f"ur5sample_{path_index}.pkl"), 'wb') as f:
+                    pickle.dump(saveRun, f)
             # print(pairs)
             # print("\n")
 

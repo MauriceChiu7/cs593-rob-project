@@ -29,14 +29,46 @@ class NeuralNetwork(nn.Module):
         return x
 
 
-MIN_STATES = [-np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04]
-MAX_STATES = [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0]
+MIN_STATES = [
+    -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, -0.9208793640136719, -0.9239162802696228, -0.7005515694618225, 
+    -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, 
+    -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, -0.9208793640136719, -0.9239162802696228, -0.7005515694618225
+    ]
+MAX_STATES = [
+    np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 0.9053947925567627, 0.9046874642372131, 1.1148362159729004, 
+    np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 
+    np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 0.9053947925567627, 0.9046874642372131, 1.1148362159729004]
+# MIN_STATES = [-np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04]
+# MAX_STATES = [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0]
 stateRange = np.subtract(MAX_STATES, MIN_STATES)
+# def normalizeData(data):
+#     normalizedData = []
+#     for d in data:
+#         prevState = d[0:8]
+#         prevEEPos = d[8:11]
+#         action = d[11:19]
+#         nextState = d[19:27]
+#         nextEEPos = d[27:30]
+
+#         normalizedState = []
+#         normalizedState.extend(normalize(prevState))
+#         normalizedState.extend(prevEEPos)
+#         normalizedState.extend(normalize(action))
+#         normalizedState.extend(normalize(nextState))
+#         normalizedState.extend(nextEEPos)
+
+#         normalizedData.append(normalizedState)
+
+#     return normalizedData
+
+
 def normalize(data):
     diff = np.subtract(data, MIN_STATES)
     normalState = diff/stateRange
-    return normalState.tolist()
+    return normalState
 
+def unnormalize(normalizedData):
+    return np.add(normalizedData * stateRange, MIN_STATES)
 
 # TODO: normalize inputs and unnormalize output
 def train(args):
@@ -51,7 +83,7 @@ def train(args):
         # create directory if not exist
         os.makedirs(modelFolder)
 
-    stateLength = 8
+    stateLength = 11
     actionLength = 8
 
     
@@ -158,7 +190,7 @@ def train(args):
 
 if __name__ == '__main__':
     # modelFolder = "./models/A1_model_3.pt"
-    trainingFolder = f"./trainingData/"
+    trainingFolder = f"./trainingDataWithEE/"
     testingFolder = f"./testData/"
 
     parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')

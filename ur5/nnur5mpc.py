@@ -5,6 +5,7 @@ import numpy as np
 import math
 import pickle
 import random
+from datetime import datetime
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
 END_EFFECTOR_INDEX = 7 # The end effector link index.
@@ -15,7 +16,7 @@ SIM_STEPS = 3
 GAMMA = 0.9
 
 def loadNN(args):
-    stateLength = 3
+    stateLength = 8
     actionLength = 8
 
     # Load the neural network
@@ -144,7 +145,8 @@ def getReward(action, jointIds, target, neuralNet, initState):
     nnPredState = getStateFromNN(neuralNet, action, initState)
 
     eeCost = dist(nnPredState[0], target)
-    elbowCost = dist(nnPredState[3], torch.Tensor(initState)[3])
+    # elbowCost = dist(nnPredState[3], torch.Tensor(initState)[3])
+    elbowCost = 0
 
     weight = torch.Tensor([10, 1])
     rawCost = torch.Tensor([eeCost, elbowCost])
@@ -175,12 +177,12 @@ def main():
     np.random.seed(np_seed)
     random.seed(py_seed)
 
-    trainingFolder = "./trainingData/"
-    errorFolder = "./error/"
-    if not os.path.exists(trainingFolder):
-        os.makedirs(trainingFolder)
-    if not os.path.exists(errorFolder):
-        os.makedirs(errorFolder)
+    testRunResults = "./testRunResults/"
+    # errorFolder = "./error/"
+    if not os.path.exists(testRunResults):
+        os.makedirs(testRunResults)
+    # if not os.path.exists(errorFolder):
+    #     os.makedirs(errorFolder)
 
     # goalCoords = randomGoal()
     goalCoords = [-0.6484, -0.3258,  0.3040]
@@ -256,27 +258,28 @@ def main():
         bestAction = epsMem[0][0][0:len(ACTIVE_JOINTS)]
         saveAction.append(bestAction)
         
-        
-        applyAction(uid, bestAction)
+        # applyAction(uid, bestAction)
 
-        finalEePos.append(getState(uid)[0].tolist())
+        # finalEePos.append(getState(uid)[0].tolist())
 
-    finalEePos = np.array(finalEePos)
-    traj = np.array(traj)
+    # finalEePos = np.array(finalEePos)
+    # traj = np.array(traj)
 
-    with open(trainingFolder + f"ur5sample.pkl", 'wb') as f:
-        pickle.dump(saveRun, f)
+    with open(testRunResults + f"test_{datetime.now()}.pkl", 'wb') as f:
+        pickle.dump(saveAction, f)
 
-    with open(errorFolder + f"debug.pkl", 'wb') as f:
-        pickle.dump(debug, f)
+    with open(testRunResults + f"test.pkl", 'wb') as f:
+        pickle.dump(saveAction, f)
 
-    with open(errorFolder + f"finalEePos.pkl", 'wb') as f:
-        pickle.dump(finalEePos, f)
+    # with open(errorFolder + f"debug.pkl", 'wb') as f:
+    #     pickle.dump(debug, f)
 
-    with open(errorFolder + f"traj.pkl", 'wb') as f:
-        pickle.dump(traj, f)
+    # with open(errorFolder + f"finalEePos.pkl", 'wb') as f:
+    #     pickle.dump(finalEePos, f)
 
-    p.disconnect()
+    # with open(errorFolder + f"traj.pkl", 'wb') as f:
+    #     pickle.dump(traj, f)
+
     # while 1:
     #     p.stepSimulation()
 
