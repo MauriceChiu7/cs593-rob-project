@@ -40,6 +40,7 @@ def loadNN(args):
 def normalizeState(state):
     global minState, stateRange
     diff = np.subtract(state, minState)
+    # exit()
     normalState = diff/stateRange
     return normalState.tolist()
 
@@ -50,10 +51,11 @@ def normalizeAction(action):
     return normalAction.tolist()
 
 def unNormalizeState(normState):
+    normState = normState.detach()
     global minState, stateRange
     prod = np.multiply(normState, stateRange)
     state = np.add(prod, minState)
-    return state.tolist()
+    return (state.tolist())
 
 def getStateFromNN(neuralNet, action, initialState):
     # Predict the next state with state1 + action
@@ -63,6 +65,7 @@ def getStateFromNN(neuralNet, action, initialState):
     state_action.extend(s1)
     state_action.extend(a)
     nnPredState = neuralNet.forward(torch.Tensor(state_action))
+    nnPredState = nnPredState.detach()
     s2 = unNormalizeState(nnPredState)
     return s2
 
@@ -115,7 +118,7 @@ def getEpsReward(neuralNet, actionLength, initialState, episode, jointIds, Horiz
         if h == (Horizon-1):
             futureS = start
             futureE = end
-            endDist = state1.tolist()[6]
+            endDist = state1[6]
         else:
             futureS = end
             futureE = end + numJoints
@@ -124,7 +127,7 @@ def getEpsReward(neuralNet, actionLength, initialState, episode, jointIds, Horiz
         reward += actionMag
 
         if h == 2:
-            startDist = state1.tolist()[6]
+            startDist = state1[6]
 
     if startDist < endDist:
         # print(f"START: {startDist}")
@@ -159,10 +162,10 @@ def main(args):
         pass
 
     # Initialize variables
-    Iterations = 50
-    Epochs = 2
-    Episodes = 40
-    Horizon = 50
+    Iterations = 150
+    Epochs = 3
+    Episodes = 70
+    Horizon = 80
     TopKEps = int(0.2*Episodes)
     numJoints = len(jointIds)
     jointMins = jointMins*Horizon
@@ -220,7 +223,7 @@ def main(args):
         # Save best action and state
         bestActions.extend(epsMem[0][0][0:numJoints])
         # Set the new state
-        initialState = getStateFromNN(neuralNet, epsMem[0][0][0:numJoints], initialState).tolist()
+        initialState = getStateFromNN(neuralNet, epsMem[0][0][0:numJoints], initialState)
         print(f"AT ITERATION {iter} WE HAVE CENTER AT ({initialState[12:]})")
         centerTraj.append(initialState[12:])
 
@@ -230,7 +233,7 @@ def main(args):
         os.makedirs(folder)
 
     print("DONE!!!!!")
-    with open(folder + f"A2_run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
+    with open(folder + f"V1_run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
         pickle.dump(bestActions, f)
     
     trajFolder = f"./trajectories/"
@@ -238,13 +241,13 @@ def main(args):
         # create directory if not exist
         os.makedirs(trajFolder)
 
-    with open(trajFolder + f"A2_run_I{Iterations}_E{Epochs}_Eps{Episodes}_NNPREDICTED.pkl", 'wb') as f:
+    with open(trajFolder + f"V1_run_I{Iterations}_E{Epochs}_Eps{Episodes}_NNPREDICTED.pkl", 'wb') as f:
         pickle.dump(centerTraj, f)
 
 
 
 if __name__ == '__main__':
-    modelFolder = "mult_models/A2_model1.pt"
+    modelFolder = "mult_models/V1_Model/V1_Model_model1.pt"
 
     parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')
     parser.add_argument('--model-folder', type=str, default=modelFolder, help="path to model")

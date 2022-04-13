@@ -17,6 +17,10 @@ class NeuralNetwork(nn.Module):
                         nn.ReLU(),
                         nn.Linear(256, 256),
                         nn.ReLU(),
+                        nn.Linear(256, 256),
+                        nn.ReLU(),
+                        nn.Linear(256, 256),
+                        nn.ReLU(),
                         nn.Linear(256, stateLength),
                      )
 
@@ -36,8 +40,8 @@ def train(args):
         stateLength = 3
         actionLength = 8
 
-    LAYERS = 2
-    EPOCH = 20
+    LAYERS = 3
+    EPOCH = 3
     
     # Open pkl file
     tups = None
@@ -61,9 +65,9 @@ def train(args):
         allData.extend(tups)
     
     _, _, bfiles = next(os.walk(args.training_folder + "bad/"))
-    TRAINDATA2 = len(bfiles[:4])
+    TRAINDATA2 = len(bfiles)
     print("Total Data bad files: ", TRAINDATA2)
-    for fi in bfiles[:4]:
+    for fi in bfiles:
         # Open every file and combine the state_action pairs
         currName = args.training_folder + "bad/" + fi
         with open(currName, 'rb') as f:
@@ -131,6 +135,7 @@ def train(args):
             # print("Loss: ", loss)
         mseAllEpochs.append(m)
 
+        random.shuffle(allTest)
         # Testing
         m = []
         mse = nn.MSELoss()

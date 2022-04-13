@@ -110,7 +110,7 @@ for _ in range(100):
 
 # THIS IS FOR PLAYBACK FROM THE TESTNNMPC FOLDER
 folder = 'multNNMPC/'
-fileName = 'A1_run_I100_E2_Eps70.pkl'
+fileName = 'V1_run_I150_E3_Eps70.pkl'
 
 with open(folder+fileName, 'rb') as f:
     actions = pickle.load(f)
