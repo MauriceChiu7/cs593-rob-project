@@ -38,8 +38,8 @@ def dist(p1, p2):
 Loads pybullet environment with a horizontal plane and earth like gravity.
 """
 def loadEnv():
-    # p.connect(p.DIRECT) 
-    p.connect(p.GUI)
+    p.connect(p.DIRECT) 
+    # p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     p.setGravity(0, 0, -9.8)
@@ -188,34 +188,37 @@ def applyAction(uid, action):
 
 def getConfigFromState(uid, action):
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
-    for _ in range(70):
+    for _ in range(100):
         p.stepSimulation()
     return getConfig(uid, ACTIVE_JOINTS)
 
 
 def main():
-    print("\n")
+    trainingFolder = "./trainingDataWithEE/"
+    
+    if not os.path.exists(trainingFolder):
+        os.makedirs(trainingFolder)
+    
     for filename in os.listdir("./trainingData"):
+        print(filename)
+        
+        path_index = filename.split("_")[1].split(".")[0]
+        
         pathName = f"./trainingData/{filename}"
         with open(pathName, 'rb') as f:
             tuples = pickle.load(f)
         
         loadEnv()
         uid = loadUR5()
-    
-        i = 0
-
         saveRun = []
-
         for tup in tuples:
             prev_state = np.array(tup[0:8])
             action = np.array(tup[8:16])
             next_state = np.array(tup[16:24])
 
-            print(prev_state)
-            print(action)
-            print(next_state)
-            print("\n")
+            # print(prev_state)
+            # print(action)
+            # print(next_state)
 
             pairs = []
 
@@ -226,13 +229,18 @@ def main():
             pairs.extend(newNextConfig)
 
             saveRun.append(pairs)
-            print(pairs)
 
-            i += 1
-            if i > 20:
-                exit()
+            with open(os.path.join(trainingFolder, f"ur5sample_{path_index}.pkl"), 'wb') as f:
+                pickle.dump(saveRun, f)
+            # print(pairs)
+            # print("\n")
+
+            # i += 1
+            # if i > 20:
+            #     exit()
 
 
+    exit()
 
     torch_seed = np.random.randint(low=0, high=1000)
     np_seed = np.random.randint(low=0, high=1000)
