@@ -11,6 +11,11 @@ from torch import nn
 
 # Ideal height for dog to maintain
 robotHeight = 0.420393
+minState = [-1.02153601, -1.1083865, 0.04107661, -1.04536732, -1.03269277 , 0.02834534, -1.2568753, -0.91284767, 0.06280416, -1.25270735, -0.83711144, 0.06090062, -1.11715088, -0.97780094, 0.06341114]
+minAction = [-0.80285144, -1.04719758, -2.69653368, -0.80285144, -1.04719758, -2.69653368, -0.80285144, -1.04719758, -2.69653368, -0.80285144, -1.04719758, -2.69653368]
+stateRange = [5.35852929, 2.55355967, 0.5749573, 5.37398911, 2.57010978, 0.59185147, 5.24135348, 2.27949571, 0.50033069, 5.2288108300000005, 2.29599363, 0.51464844, 5.2859171400000005, 2.43478941, 0.40024636]
+actionRange = [1.60570288, 5.2359879, 1.78023583, 1.60570288, 5.2359879, 1.78023583, 1.60570288, 5.2359879, 1.78023583, 1.60570288, 5.2359879, 1.78023583]
+
 
 def loadNN(args):
     stateLength = 15
@@ -32,14 +37,34 @@ def loadNN(args):
 
     return neuralNet, stateLength, actionLength
 
+def normalizeState(state):
+    global minState, stateRange
+    diff = np.subtract(state, minState)
+    normalState = diff/stateRange
+    return normalState.tolist()
+
+def normalizeAction(action):
+    global minAction, actionRange
+    diff = np.subtract(action, minAction)
+    normalAction = diff/actionRange
+    return normalAction.tolist()
+
+def unNormalizeState(normState):
+    global minState, stateRange
+    prod = np.multiply(normState, stateRange)
+    state = np.add(prod, minState)
+    return state.tolist()
 
 def getStateFromNN(neuralNet, action, initialState):
     # Predict the next state with state1 + action
     state_action = []
-    state_action.extend(initialState)
-    state_action.extend(action)
+    s1 = normalizeState(initialState)
+    a = normalizeAction(action)
+    state_action.extend(s1)
+    state_action.extend(a)
     nnPredState = neuralNet.forward(torch.Tensor(state_action))
-    return nnPredState
+    s2 = unNormalizeState(nnPredState)
+    return s2
 
 
 def getWeightedState(nnPredState):
@@ -124,19 +149,19 @@ def main(args):
         jointMins = [-0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433]
         jointMaxes = [0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297]
         initialState = [
-            0.179689, -0.047635, 0.480031,   # FR_hip_joint
-            0.179689, 0.047635, 0.480031,    # FL_hip_joint
-            -0.179689, -0.047635, 0.480031,     # RR_hip_joint
-            -0.179689, 0.047635, 0.480031,      # RL_hip_joint
-            0.012731, 0.002186, 0.48051499999999997     # Floating base
+            0.179689, -0.047635, 0.42,   # FR_hip_joint
+            0.179689, 0.047635, 0.42,    # FL_hip_joint
+            -0.179689, -0.047635, 0.42,     # RR_hip_joint
+            -0.179689, 0.047635, 0.42,      # RL_hip_joint
+            0.012731, 0.002186, 0.42     # Floating base
         ]
     else:   # ur5
         pass
 
     # Initialize variables
-    Iterations = 15
+    Iterations = 50
     Epochs = 2
-    Episodes = 20
+    Episodes = 40
     Horizon = 50
     TopKEps = int(0.2*Episodes)
     numJoints = len(jointIds)
@@ -205,7 +230,7 @@ def main(args):
         os.makedirs(folder)
 
     print("DONE!!!!!")
-    with open(folder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
+    with open(folder + f"A2_run_I{Iterations}_E{Epochs}_Eps{Episodes}.pkl", 'wb') as f:
         pickle.dump(bestActions, f)
     
     trajFolder = f"./trajectories/"
@@ -213,13 +238,13 @@ def main(args):
         # create directory if not exist
         os.makedirs(trajFolder)
 
-    with open(trajFolder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}_NNPREDICTED.pkl", 'wb') as f:
+    with open(trajFolder + f"A2_run_I{Iterations}_E{Epochs}_Eps{Episodes}_NNPREDICTED.pkl", 'wb') as f:
         pickle.dump(centerTraj, f)
 
 
 
 if __name__ == '__main__':
-    modelFolder = "mult_models/A1_model1.pt"
+    modelFolder = "mult_models/A2_model1.pt"
 
     parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')
     parser.add_argument('--model-folder', type=str, default=modelFolder, help="path to model")
