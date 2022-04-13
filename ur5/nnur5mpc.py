@@ -1,11 +1,9 @@
-import pybullet as p
-import pybullet_data
 import os
 import torch
+from torch import nn
 import numpy as np
 import math
 import pickle
-import time
 import random
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
@@ -15,6 +13,27 @@ DISCRETIZED_STEP = 0.05
 CTL_FREQ = 20
 SIM_STEPS = 3
 GAMMA = 0.9
+
+def loadNN(args):
+    stateLength = 3
+    actionLength = 8
+
+    # Load the neural network
+    neuralNet = nn.Sequential(
+                        nn.Linear(stateLength + actionLength, 256),
+                        nn.ReLU(),
+                        nn.Linear(256, 256),
+                        nn.ReLU(),
+                        nn.Linear(256, 256),
+                        nn.ReLU(),
+                        nn.Linear(256, stateLength),
+                     )
+    # Edit this when done with training
+    neuralNet.load_state_dict(torch.load(args.model_folder))
+    neuralNet.eval()
+
+    return neuralNet, stateLength, actionLength
+
 
 """
 Calculates the difference between two vectors.
@@ -33,39 +52,6 @@ Calculates distance between two vectors.
 """
 def dist(p1, p2):
     return magnitude(diff(p1, p2))
-
-"""
-Loads pybullet environment with a horizontal plane and earth like gravity.
-"""
-def loadEnv():
-    p.connect(p.DIRECT) 
-    # p.connect(p.GUI)
-    p.setAdditionalSearchPath(pybullet_data.getDataPath())
-    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
-    p.setGravity(0, 0, -9.8)
-    # p.setTimeStep(1./50.)
-    p.setTimeStep(1./CTL_FREQ/SIM_STEPS)
-
-"""
-Loads the UR5 robot.
-"""
-def loadUR5():
-    p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
-    path = f"{os.getcwd()}/../ur5pybullet"
-    print(path)
-    # exit()
-    os.chdir(path) # Needed to change directory to load the UR5.
-    uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
-    path = f"{os.getcwd()}/../ur5"
-    os.chdir(path) # Back to parent directory.
-    # Enable collision for all link pairs.
-    for l0 in range(p.getNumJoints(uid)):
-        for l1 in range(p.getNumJoints(uid)):
-            if (not l1>l0):
-                enableCollision = 1
-                # print("collision for pair",l0,l1, p.getJointInfo(uid,l0)[12],p.getJointInfo(uid,l1)[12], "enabled=",enableCollision)
-                p.setCollisionFilterPair(uid, uid, l1, l0, enableCollision)
-    return uid
 
 def getConfig(uid, jointIds):
     jointPositions = []
@@ -145,21 +131,20 @@ def makeTrajectory(initCoords, goalCoords):
     
     return torch.stack(traj)
 
-def getState(uid):
-    eePos = p.getLinkState(uid, END_EFFECTOR_INDEX)[0]
-    elbowPos = p.getLinkState(uid, ELBOW_INDEX)[0]
-    state = torch.Tensor([eePos, elbowPos])
-    return state
 
-def getReward(action, jointIds, uid, target):
-    state = getState(uid)
+def getStateFromNN(neuralNet, action, initialState):
+    # Predict the next state with state1 + action
+    state_action = []
+    state_action.extend(initialState)
+    state_action.extend(action)
+    nnPredState = neuralNet.forward(torch.Tensor(state_action))
+    return nnPredState
 
-    applyAction(uid, action)
+def getReward(action, jointIds, target, neuralNet, initState):
+    nnPredState = getStateFromNN(neuralNet, action, initState)
 
-    next_state = getState(uid)
-
-    eeCost = dist(next_state[0], target)
-    elbowCost = dist(next_state[1], state[1])
+    eeCost = dist(nnPredState[0], target)
+    elbowCost = dist(nnPredState[3], torch.Tensor(initState)[3])
 
     weight = torch.Tensor([10, 1])
     rawCost = torch.Tensor([eeCost, elbowCost])
@@ -168,22 +153,21 @@ def getReward(action, jointIds, uid, target):
     # print("reward:\t\t", reward)
     return reward
 
-def getEpsReward(episode, jointIds, uid, Horizon, futureStates):
+def getEpsReward(episode, jointIds, Horizon, futureStates, neuralNet, initState):
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):
         start = h * numJoints
         end = start + numJoints
         action = episode[start:end]
-        reward += getReward(action, jointIds, uid, futureStates[h])
+        reward += getReward(action, jointIds, futureStates[h], neuralNet, initState)
     return reward
 
-def applyAction(uid, action):
-    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
-    for _ in range(SIM_STEPS):
-        p.stepSimulation()
 
 def main():
+    # Load Neural Network instead of pybullet stuff
+    neuralNet, stateLength, actionLength = loadNN()
+
     torch_seed = np.random.randint(low=0, high=1000)
     np_seed = np.random.randint(low=0, high=1000)
     py_seed = np.random.randint(low=0, high=1000)
@@ -197,15 +181,11 @@ def main():
         os.makedirs(trainingFolder)
     if not os.path.exists(errorFolder):
         os.makedirs(errorFolder)
-    
-    loadEnv()
-    uid = loadUR5()
-    jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
 
-    goalCoords = randomGoal()
-    initState, initCoords = randomInit(uid)
-    print(goalCoords)
-    exit()
+    # goalCoords = randomGoal()
+    goalCoords = [-0.6484, -0.3258,  0.3040]
+    initState = [0] * 8
+    initCoords = [-0.8144, -0.1902,  0.0707]
 
     debug = {
         'goalCoords': goalCoords,
@@ -225,7 +205,9 @@ def main():
     Episodes = 200 # G - plans
     Horizon = 10 # H - horizonLength
     TopKEps = int(0.3*Episodes)
-    jointMins,jointMaxes = getLimitPos(ACTIVE_JOINTS, uid)
+    # jointMins,jointMaxes = getLimitPos(ACTIVE_JOINTS, uid)
+    jointMins = [-np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04]
+    jointMaxes = [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0]
     jointMins = jointMins*Horizon
     jointMaxes = jointMaxes*Horizon
     jointMins = torch.Tensor(jointMins)
@@ -240,10 +222,6 @@ def main():
 
         mu = torch.Tensor([0]*(len(ACTIVE_JOINTS) * Horizon))
         cov = torch.eye(len(mu)) * ((np.pi/2) ** 2)
-        startState = p.saveState()
-        p.restoreState(startState)
-        
-        stateId = p.saveState()
 
         futureStates = []
         for h in range(Horizon):
@@ -252,19 +230,17 @@ def main():
             else:
                 futureStates.append(traj[envStep + h])
         futureStates = torch.stack(futureStates)
-        # print(envStep)
-        # print("futureStates:\n", futureStates)
+
         epsMem = []
         for e in range(Epochs):
             print(f"Epoch {e}")
             distr = torch.distributions.MultivariateNormal(mu, cov)
             for eps in range (Episodes):
-                p.restoreState(stateId)
                 episode = distr.sample()
                 episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
-                cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates)
+                cost = getEpsReward(episode, ACTIVE_JOINTS, Horizon, futureStates, neuralNet, initState)
                 epsMem.append((episode,cost))
-            p.restoreState(stateId)
+
             epsMem = sorted(epsMem, key = lambda x: x[1])
             epsMem = epsMem[0:TopKEps]
             topK = [x[0] for x in epsMem]
@@ -280,17 +256,8 @@ def main():
         bestAction = epsMem[0][0][0:len(ACTIVE_JOINTS)]
         saveAction.append(bestAction)
         
-        pairs = []
-        pairs.extend(getConfig(uid, ACTIVE_JOINTS))
-        pairs.extend(bestAction)
         
         applyAction(uid, bestAction)
-
-        temp = p.saveState()
-        p.restoreState(temp)
-
-        pairs.extend(getConfig(uid, ACTIVE_JOINTS))
-        saveRun.append(pairs)
 
         finalEePos.append(getState(uid)[0].tolist())
 
