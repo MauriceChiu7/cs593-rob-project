@@ -15,8 +15,8 @@ CTL_FREQ = 20
 SIM_STEPS = 3
 GAMMA = 0.9
 
-def loadNN(args):
-    stateLength = 8
+def loadNN():
+    stateLength = 11
     actionLength = 8
 
     # Load the neural network
@@ -30,7 +30,13 @@ def loadNN(args):
                         nn.Linear(256, stateLength),
                      )
     # Edit this when done with training
-    neuralNet.load_state_dict(torch.load(args.model_folder))
+    modelName = f"UR5_V1_Model_2Layers"
+    # create model folder
+    modelFolder = f"./mult_models/{modelName}/"
+    if not os.path.exists(modelFolder):
+        # create directory if not exist
+        os.makedirs(modelFolder)
+    neuralNet.load_state_dict(torch.load(f"{modelFolder}UR5_V1_Model_2Layers_model1.pt"))
     neuralNet.eval()
 
     return neuralNet, stateLength, actionLength
@@ -40,6 +46,8 @@ def loadNN(args):
 Calculates the difference between two vectors.
 """
 def diff(v1, v2):
+    v1 = torch.Tensor(v1)
+    v2 = torch.Tensor(v2)
     return torch.sub(v1, v2)
 
 """
@@ -127,8 +135,8 @@ def makeTrajectory(initCoords, goalCoords):
         # print(torch.mul(stepVector, i))
         traj.append(torch.add(initCoords, torch.mul(stepVector, i)))
     
-    for pt in range(len(traj)-1):
-        p.addUserDebugLine([0,0,0.1],traj[pt],traj[pt+1])
+    # for pt in range(len(traj)-1):
+    #     p.addUserDebugLine([0,0,0.1],traj[pt],traj[pt+1])
     
     return torch.stack(traj)
 
@@ -186,8 +194,12 @@ def main():
 
     # goalCoords = randomGoal()
     goalCoords = [-0.6484, -0.3258,  0.3040]
-    initState = [0] * 8
+    initState = [0, 0, 0, 0, 0, 0, 0, 0, -0.8144, -0.1902, 0.0707]
     initCoords = [-0.8144, -0.1902,  0.0707]
+
+    goalCoords = torch.Tensor(goalCoords)
+    initState = torch.Tensor(initState)
+    initCoords = torch.Tensor(initCoords)
 
     debug = {
         'goalCoords': goalCoords,
@@ -257,6 +269,7 @@ def main():
 
         bestAction = epsMem[0][0][0:len(ACTIVE_JOINTS)]
         saveAction.append(bestAction)
+        # saveAction.extend(initState[8:-1])
         
         # applyAction(uid, bestAction)
 

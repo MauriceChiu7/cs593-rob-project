@@ -4,6 +4,7 @@ import pybullet_data
 import torch
 import pickle
 import time
+import argparse
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
 END_EFFECTOR_INDEX = 7 # The end effector link index.
@@ -26,7 +27,7 @@ def loadEnv():
 Loads the UR5 robot.
 """
 def loadUR5():
-    p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=-30, cameraPitch=-35, cameraTargetPosition=(0,0,0))
+    p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=-70, cameraPitch=-10, cameraTargetPosition=(0,0,0))
     path = f"{os.getcwd()}/../ur5pybullet"
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
@@ -72,14 +73,19 @@ def moveTo(uid, position):
     # p.addUserDebugText("Replaying", [0.2, 0.2, 0], [0, 0, 10])
     return initState, initCoords
 
-def playback():
-    path = 31
-    with open(f"./trainingData/ur5sample_{path}.pkl", 'rb') as f:
-        tuples = pickle.load(f)
-    
-    with open(f"./error/debug_{path}.pkl", 'rb') as f:
-        states = pickle.load(f)
-    
+def playback(args):
+
+    if args.mode == 'mpc':
+        path = args.path_number
+        with open(f"./trainingData/ur5sample_{path}.pkl", 'rb') as f:
+            tuples = pickle.load(f)
+        
+        with open(f"./error/debug_{path}.pkl", 'rb') as f:
+            states = pickle.load(f)
+    else:
+        with open(f"./testRunResults/test.pkl", 'rb') as f:
+            tuples = pickle.load(f)
+
     # print(states)
     # initCoords = states["initCoords"]
     # position = states["initState"]
@@ -96,33 +102,54 @@ def playback():
     # goalCoords       tensor([-0.0587, -0.2683,  0.2389])
     # initState        tensor([-0.5888,  0.1401, -2.1266,  0.5458, -1.2973,  1.6745, -0.8886, -0.5362])
     # initCoords       tensor([-0.3674,  0.0948,  0.3818])
-    initCoords = states["initCoords"]
-    position = states["initState"]
-    goalCoords = states["goalCoords"]
+    if args.mode == 'mpc':
+        initCoords = states["initCoords"]
+        position = states["initState"]
+        goalCoords = states["goalCoords"]
+
+        replay_initState, replay_initCoords = moveTo(uid, position)
+
+        print("initCoords\t", initCoords)
+        print("replay_initCoords\t", replay_initCoords)
+    else:
+        initCoords = [-0.8144, -0.1902,  0.1]
+        goalCoords = [-0.6484, -0.3258,  0.3040]
+
 
     p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])
     p.addUserDebugLine([0,0,0.1], goalCoords, [0,0,1])
+
+    # while 1:
+    #     p.stepSimulation()
     
-    replay_initState, replay_initCoords = moveTo(uid, position)
-
-    print("initCoords\t", initCoords)
-    print("replay_initCoords\t", replay_initCoords)
     # print("var\t", var)
     # print("var\t", var)
 
-    for tuple in tuples:
-        action = tuple[8:16]
-        action = torch.Tensor(action)
-        # print(f"action applied:\n{action}")
-        p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
-        for _ in range(SIM_STEPS):
-            time.sleep(1./25.)
-            p.stepSimulation()
+    if args.mode == 'mpc':
+        for tuple in tuples:
+            action = tuple[8:16]
+            action = torch.Tensor(action)
+            # print(f"action applied:\n{action}")
+            p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
+            for _ in range(SIM_STEPS):
+                time.sleep(1./25.)
+                p.stepSimulation()
+    else: 
+        for tuple in tuples:
+            action = torch.Tensor(tuple)
+            p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
+            for _ in range(SIM_STEPS):
+                time.sleep(1./25.)
+                p.stepSimulation()
         # time.sleep(1.)
     # time.sleep(10)
     # while 1:
     #     p.stepSimulation()
 
 if __name__ == '__main__':
-    
-    playback()
+    parser = argparse.ArgumentParser(description='for playing back actions for the ur5')
+
+    parser.add_argument('-m', '--mode', type=str, default='mpc', help="use 'mpc' to playback results generated with ur5.py and 'nnmpc' for results generated with nnur5mpc.py")
+    parser.add_argument('-pn', '--path-number', type=int, default=0, help="the path number which you want to see the playback of")
+    args = parser.parse_args()
+    playback(args)
