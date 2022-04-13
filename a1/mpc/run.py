@@ -141,10 +141,12 @@ def getEpsReward(eps, jointIds, quadruped, Horizon):
 
 maxForceId, quadruped, jointIds = loadDog()
 
+# TODO: Change paramters for tuning
 Iterations = 10
 Epochs = 10
 Episodes = 10
 Horizon = 50
+
 TopKEps = int(0.3*Episodes)
 numJoints = len(jointIds)
 jointMins,jointMaxes = getLimitPos(jointIds, quadruped)
@@ -196,9 +198,10 @@ for it in range(Iterations):
         p.restoreState(startState)
         # Sort the episode memory
         epsMem = sorted(epsMem, key = lambda x: x[1])
-        # print(f"TOP {epsMem[0][1]}")
-        # print(f"BOTTOM {epsMem[len(epsMem) -1][1]}")
+
+        # TODO: Uncomment to track errors
         # error.append(epsMem[0][1])
+
         # Now get the top K episodes 
         epsMem = epsMem[0:TopKEps]
         # Now just get a list of episodes from these (episode,cost) pairs
@@ -213,6 +216,7 @@ for it in range(Iterations):
         cov = torch.Tensor(np.diag(var))
         currEpsNum = Episodes - TopKEps
     
+    # TODO: Uncomment to track errors
     # with open(graphFolder + f"run_I{Iterations}_E{Epochs}_Eps{Episodes}_H{Horizon}_epoch_{it}.pkl", 'wb') as f:
     #     pickle.dump(error, f)
 

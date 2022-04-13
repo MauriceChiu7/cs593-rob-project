@@ -103,8 +103,8 @@ def main(args):
             p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, a)
             p.stepSimulation()
             time.sleep(0.1)
-    # trainingmpc to check ground truth
-    elif args.mode == "trainingmpc":
+    # Playback stuff produced from generateData
+    elif args.mode == "gendata":
         stateLength = 15
         actionLength = 12
 
@@ -117,7 +117,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Playback Actions for A1')
-    parser.add_argument('--mode', type=str, default="mpc", help="mpc or trainingmpc")
+    parser.add_argument('--mode', type=str, default="mpc", help="mpc or gendata")
     parser.add_argument('--file', type=str, help="path to file")
     args = parser.parse_args()
     
