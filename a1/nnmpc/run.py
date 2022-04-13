@@ -147,22 +147,20 @@ def main(args):
     jointMins = []
     jointMaxes = []
     initialState = []
-    if args.robot == "a1":
-        jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]
-        jointMins = [-0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433]
-        jointMaxes = [0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297]
-        initialState = [
-            0.179689, -0.047635, 0.42,   # FR_hip_joint
-            0.179689, 0.047635, 0.42,    # FL_hip_joint
-            -0.179689, -0.047635, 0.42,     # RR_hip_joint
-            -0.179689, 0.047635, 0.42,      # RL_hip_joint
-            0.012731, 0.002186, 0.42     # Floating base
-        ]
-    else:   # ur5
-        pass
+
+    jointIds = [2,3,4,6,7,8,10,11,12,14,15,16]
+    jointMins = [-0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433]
+    jointMaxes = [0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297]
+    initialState = [
+        0.179689, -0.047635, 0.42,   # FR_hip_joint
+        0.179689, 0.047635, 0.42,    # FL_hip_joint
+        -0.179689, -0.047635, 0.42,     # RR_hip_joint
+        -0.179689, 0.047635, 0.42,      # RL_hip_joint
+        0.012731, 0.002186, 0.42     # Floating base
+    ]
 
     # Initialize variables
-    Iterations = 150
+    Iterations = 10
     Epochs = 3
     Episodes = 70
     Horizon = 80
@@ -227,7 +225,7 @@ def main(args):
         print(f"AT ITERATION {iter} WE HAVE CENTER AT ({initialState[12:]})")
         centerTraj.append(initialState[12:])
 
-    folder = f"./multNNMPC/"
+    folder = f"./NN_MPC_Action_Results/"
     if not os.path.exists(folder):
         # create directory if not exist
         os.makedirs(folder)
@@ -249,9 +247,8 @@ def main(args):
 if __name__ == '__main__':
     modelFolder = "mult_models/V1_Model/V1_Model_model1.pt"
 
-    parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')
+    parser = argparse.ArgumentParser(description='Running MPC with NN instead of Pybullet')
     parser.add_argument('--model-folder', type=str, default=modelFolder, help="path to model")
-    parser.add_argument('--robot', type=str, default='a1', help='robot type')
     args = parser.parse_args()
     
     main(args)
