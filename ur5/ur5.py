@@ -194,7 +194,7 @@ def main():
     np.random.seed(np_seed)
     random.seed(py_seed)
 
-    trainingFolder = "./trainingData/"
+    trainingFolder = "./trainingDataWithEE/"
     errorFolder = "./error/"
     if not os.path.exists(trainingFolder):
         os.makedirs(trainingFolder)
