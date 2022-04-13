@@ -198,7 +198,7 @@ for it in range(Iterations):
         epsMem = sorted(epsMem, key = lambda x: x[1])
         # print(f"TOP {epsMem[0][1]}")
         # print(f"BOTTOM {epsMem[len(epsMem) -1][1]}")
-        error.append(epsMem[0][1])
+        # error.append(epsMem[0][1])
         # Now get the top K episodes 
         epsMem = epsMem[0:TopKEps]
         # Now just get a list of episodes from these (episode,cost) pairs
@@ -213,8 +213,8 @@ for it in range(Iterations):
         cov = torch.Tensor(np.diag(var))
         currEpsNum = Episodes - TopKEps
     
-    with open(graphFolder + f"run_I{Iterations}_E{Epochs}_Eps{Episodes}_H{Horizon}_epoch_{it}.pkl", 'wb') as f:
-        pickle.dump(error, f)
+    # with open(graphFolder + f"run_I{Iterations}_E{Epochs}_Eps{Episodes}_H{Horizon}_epoch_{it}.pkl", 'wb') as f:
+    #     pickle.dump(error, f)
 
     # Save best action
     bestAction = epsMem[0][0][0:numJoints]
