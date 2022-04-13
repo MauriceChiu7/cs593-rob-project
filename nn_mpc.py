@@ -27,6 +27,10 @@ def loadNN(args):
                     nn.ReLU(),
                     nn.Linear(256, 256),
                     nn.ReLU(),
+                    nn.Linear(256, 256),
+                    nn.ReLU(),
+                    nn.Linear(256, 256),
+                    nn.ReLU(),
                     nn.Linear(256, stateLength),
                 )
     # Edit this when done with training
@@ -129,11 +133,11 @@ def main(args):
         jointMins = [-0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433, -0.802851455917, -1.0471975512, -2.69653369433]
         jointMaxes = [0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297, 0.802851455917, 4.18879020479, -0.916297857297]
         initialState = [
-            0.179689, -0.047635, 0.480031,   # FR_hip_joint
-            0.179689, 0.047635, 0.480031,    # FL_hip_joint
-            -0.179689, -0.047635, 0.480031,     # RR_hip_joint
-            -0.179689, 0.047635, 0.480031,      # RL_hip_joint
-            0.012731, 0.002186, 0.48051499999999997     # Floating base
+            0.179689, -0.047635, 0.42040155674978175,   # FR_hip_joint
+            0.179689, 0.047635, 0.42040155674978175,    # FL_hip_joint
+            -0.179689, -0.047635, 0.42040155674978175,     # RR_hip_joint
+            -0.179689, 0.047635, 0.42040155674978175,      # RL_hip_joint
+            0.012731, 0.002186, 0.42040155674978175     # Floating base
         ]
     else:   # ur5
         jointIds = [1,2,3,4,5,6,8,9]
@@ -143,10 +147,10 @@ def main(args):
         pass
 
     # Initialize variables
-    Iterations = 51
-    Epochs = 6
-    Episodes = 80
-    Horizon = 80
+    Iterations = 150
+    Epochs = 10
+    Episodes = 100
+    Horizon = 100
     TopKEps = int(0.3*Episodes)
     numJoints = len(jointIds)
     jointMins = jointMins*Horizon
@@ -210,12 +214,12 @@ def main(args):
         os.makedirs(folder)
 
     print("DONE!!!!!")
-    with open(folder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}_H{Horizon}_model_A1_model_gb_layers2_path14_epoch20.pkl", 'wb') as f:
+    with open(folder + f"A1_run_I{Iterations}_E{Epochs}_Eps{Episodes}_H{Horizon}_model_A1_model_gb_layers3_path69_epoch3.pkl", 'wb') as f:
         pickle.dump(bestActions, f)
 
 
 if __name__ == '__main__':
-    modelFolder = "./models/A1_model_gb_layers2_path14_epoch20.pt"
+    modelFolder = "./models/A1_model_gb_layers3_path69_epoch3.pt"
 
     parser = argparse.ArgumentParser(description='Training a Neural Network with the Best Actions')
     parser.add_argument('--model-folder', type=str, default=modelFolder, help="path to model")
