@@ -46,7 +46,6 @@ def normalizeAction(action):
     normalAction = diff/actionRange
     return normalAction.tolist()
 
-
     
 # TODO: normalize inputs and outputs
 def train():
