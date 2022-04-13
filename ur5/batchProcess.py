@@ -5,7 +5,7 @@ import torch
 import numpy as np
 import math
 import pickle
-import sys
+import time
 import random
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
@@ -38,8 +38,8 @@ def dist(p1, p2):
 Loads pybullet environment with a horizontal plane and earth like gravity.
 """
 def loadEnv():
-    p.connect(p.DIRECT) 
-    # p.connect(p.GUI)
+    # p.connect(p.DIRECT) 
+    p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     p.setGravity(0, 0, -9.8)
@@ -186,7 +186,54 @@ def applyAction(uid, action):
     for _ in range(SIM_STEPS):
         p.stepSimulation()
 
-def main(path_index):
+def getConfigFromState(uid, action):
+    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
+    for _ in range(70):
+        p.stepSimulation()
+    return getConfig(uid, ACTIVE_JOINTS)
+
+
+def main():
+    print("\n")
+    for filename in os.listdir("./trainingData"):
+        pathName = f"./trainingData/{filename}"
+        with open(pathName, 'rb') as f:
+            tuples = pickle.load(f)
+        
+        loadEnv()
+        uid = loadUR5()
+    
+        i = 0
+
+        saveRun = []
+
+        for tup in tuples:
+            prev_state = np.array(tup[0:8])
+            action = np.array(tup[8:16])
+            next_state = np.array(tup[16:24])
+
+            print(prev_state)
+            print(action)
+            print(next_state)
+            print("\n")
+
+            pairs = []
+
+            newPrevConfig = getConfigFromState(uid, prev_state)
+            pairs.extend(newPrevConfig)
+            pairs.extend(action)
+            newNextConfig = getConfigFromState(uid, next_state)
+            pairs.extend(newNextConfig)
+
+            saveRun.append(pairs)
+            print(pairs)
+
+            i += 1
+            if i > 20:
+                exit()
+
+
+
     torch_seed = np.random.randint(low=0, high=1000)
     np_seed = np.random.randint(low=0, high=1000)
     py_seed = np.random.randint(low=0, high=1000)
@@ -234,11 +281,8 @@ def main(path_index):
 
     saveRun = []
     saveAction = []
+
     finalEePos = []
-
-    # with open(os.path.join(trainingFolder, f"ur5sample_{path_index}.pkl"), 'wb') as f:
-    #     pickle.dump(saveRun, f)
-
     for envStep in range(Iterations):
         print(f"Running Iteration {envStep} ...")
 
@@ -301,16 +345,16 @@ def main(path_index):
     finalEePos = np.array(finalEePos)
     traj = np.array(traj)
 
-    with open(os.path.join(trainingFolder, f"ur5sample_{path_index}.pkl"), 'wb') as f:
+    with open(trainingFolder + f"ur5sample.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
 
-    with open(os.path.join(errorFolder, f"debug_{path_index}.pkl"), 'wb') as f:
+    with open(errorFolder + f"debug.pkl", 'wb') as f:
         pickle.dump(debug, f)
 
-    with open(os.path.join(errorFolder, f"finalEePos_{path_index}.pkl"), 'wb') as f:
+    with open(errorFolder + f"finalEePos.pkl", 'wb') as f:
         pickle.dump(finalEePos, f)
 
-    with open(os.path.join(errorFolder, f"traj_{path_index}.pkl"), 'wb') as f:
+    with open(errorFolder + f"traj.pkl", 'wb') as f:
         pickle.dump(traj, f)
 
     p.disconnect()
@@ -319,8 +363,4 @@ def main(path_index):
 
 
 if __name__ == '__main__':
-    start = int(sys.argv[1])
-    end = int(sys.argv[2])
-    print(f"\ngenerating paths {start} to {end}...\n")
-    for i in range(start, end):
-        main(i)
+    main()
