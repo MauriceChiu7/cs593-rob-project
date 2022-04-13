@@ -77,7 +77,7 @@ def playback(args):
 
     if args.mode == 'mpc':
         path = args.path_number
-        with open(f"./trainingData/ur5sample_{path}.pkl", 'rb') as f:
+        with open(f"./trainingDataWithEE/ur5sample_{path}.pkl", 'rb') as f:
             tuples = pickle.load(f)
         
         with open(f"./error/debug_{path}.pkl", 'rb') as f:
@@ -86,14 +86,6 @@ def playback(args):
         with open(f"./testRunResults/test.pkl", 'rb') as f:
             tuples = pickle.load(f)
 
-    # print(states)
-    # initCoords = states["initCoords"]
-    # position = states["initState"]
-    # goalCoords = states["goalCoords"]
-    # print(initCoords)
-    # print(position)
-    # print(goalCoords)
-    # exit()
 
     loadEnv()
     
@@ -127,7 +119,7 @@ def playback(args):
 
     if args.mode == 'mpc':
         for tuple in tuples:
-            action = tuple[8:16]
+            action = tuple[11:19]
             action = torch.Tensor(action)
             # print(f"action applied:\n{action}")
             p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
@@ -149,7 +141,7 @@ def playback(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='for playing back actions for the ur5')
 
-    parser.add_argument('-m', '--mode', type=str, default='mpc', help="use 'mpc' to playback results generated with ur5.py and 'nnmpc' for results generated with nnur5mpc.py")
-    parser.add_argument('-pn', '--path-number', type=int, default=0, help="the path number which you want to see the playback of")
+    parser.add_argument('-m', '--mode', type=str, default='mpc', choices=['mpc', 'nnmpc'], help="use 'mpc' to playback results generated with ur5.py and 'nnmpc' for results generated with nnur5mpc.py")
+    parser.add_argument('-pn', '--path-number', type=int, default=70, help="the path number which you want to see the playback of")
     args = parser.parse_args()
     playback(args)

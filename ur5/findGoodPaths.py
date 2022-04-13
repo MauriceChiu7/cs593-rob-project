@@ -1,11 +1,12 @@
-from sklearn.metrics import mean_squared_error as mse
+# from sklearn.metrics import mean_squared_error as mse
+import numpy as np
 import os
 import pickle
 import matplotlib.pyplot as plt
 
 goodPaths = []
 
-for filename in os.listdir("./trainingData"):
+for filename in os.listdir("./trainingDataWithEE"):
     path = filename.split("_")[1].split(".")[0]
     
     # print(filename)
@@ -20,8 +21,8 @@ for filename in os.listdir("./trainingData"):
     
     # print(traj)
     # print(sim)
-    
-    error = mse(traj, sim)
+    # error = mse(traj, sim)
+    error = np.square(np.subtract(traj,sim)).mean()
     # print(error)
 
     print(f"{filename} has MSE: {error}")
@@ -46,6 +47,6 @@ for filename in os.listdir("./trainingData"):
 goodPaths.sort()
 print(f"Good Paths: {goodPaths}")
 
-percentage = len(goodPaths)/len(os.listdir("./trainingData"))
-print(f"{len(goodPaths)} out of {len(os.listdir('./trainingData'))} are good paths. {percentage*100}%")
+percentage = len(goodPaths)/len(os.listdir("./trainingDataWithEE"))
+print(f"{len(goodPaths)} out of {len(os.listdir('./trainingDataWithEE'))} are good paths. {percentage*100}%")
 

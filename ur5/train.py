@@ -91,7 +91,7 @@ def train(args):
     tups = None
     allData = []
 
-    # Read through trainingData
+    # Read through trainingDataWithEE
     _, _, files = next(os.walk(args.training_folder))
     for fi in files:
         # Open every file and combine the state_action pairs
@@ -189,7 +189,6 @@ def train(args):
 
 
 if __name__ == '__main__':
-    # modelFolder = "./models/A1_model_3.pt"
     trainingFolder = f"./trainingDataWithEE/"
     testingFolder = f"./testData/"
 
