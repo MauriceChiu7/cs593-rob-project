@@ -68,12 +68,15 @@ def loadUR5():
     return uid
 
 def getConfig(uid, jointIds):
-    jointPositions = []
+    config = []
     for id in jointIds:
         # print(p.getJointState(uid, id)[0])
-        jointPositions.append(p.getJointState(uid, id)[0])
-    jointPositions = torch.Tensor(jointPositions)
-    return jointPositions
+        config.append(p.getJointState(uid, id)[0])
+    EEPos = getState(uid)[0].tolist()
+    config.append(EEPos[0])
+    config.append(EEPos[1])
+    config.append(EEPos[2])
+    return config
 
 def getLimitPos(jointIds, quadruped):
     mins = []
@@ -204,8 +207,6 @@ def main():
 
     goalCoords = randomGoal()
     initState, initCoords = randomInit(uid)
-    print(goalCoords)
-    exit()
 
     debug = {
         'goalCoords': goalCoords,

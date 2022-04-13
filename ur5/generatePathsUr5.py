@@ -68,12 +68,15 @@ def loadUR5():
     return uid
 
 def getConfig(uid, jointIds):
-    jointPositions = []
+    config = []
     for id in jointIds:
         # print(p.getJointState(uid, id)[0])
-        jointPositions.append(p.getJointState(uid, id)[0])
-    jointPositions = torch.Tensor(jointPositions)
-    return jointPositions
+        config.append(p.getJointState(uid, id)[0])
+    EEPos = getState(uid)[0].tolist()
+    config.append(EEPos[0])
+    config.append(EEPos[1])
+    config.append(EEPos[2])
+    return config
 
 def getLimitPos(jointIds, quadruped):
     mins = []
@@ -191,7 +194,7 @@ def main(path_index):
     np.random.seed(np_seed)
     random.seed(py_seed)
 
-    trainingFolder = "./trainingData/"
+    trainingFolder = "./trainingDataWithEE/"
     errorFolder = "./error/"
     if not os.path.exists(trainingFolder):
         os.makedirs(trainingFolder)
@@ -291,6 +294,8 @@ def main(path_index):
         p.restoreState(temp)
 
         pairs.extend(getConfig(uid, ACTIVE_JOINTS))
+        print(pairs)
+        exit()
         saveRun.append(pairs)
 
         finalEePos.append(getState(uid)[0].tolist())

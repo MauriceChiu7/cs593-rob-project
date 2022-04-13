@@ -69,12 +69,15 @@ def loadUR5():
     return uid
 
 def getConfig(uid, jointIds):
-    jointPositions = []
+    config = []
     for id in jointIds:
         # print(p.getJointState(uid, id)[0])
-        jointPositions.append(p.getJointState(uid, id)[0])
-    jointPositions = torch.Tensor(jointPositions)
-    return jointPositions
+        config.append(p.getJointState(uid, id)[0])
+    EEPos = getState(uid)[0].tolist()
+    config.append(EEPos[0])
+    config.append(EEPos[1])
+    config.append(EEPos[2])
+    return config
 
 def getLimitPos(jointIds, quadruped):
     mins = []
@@ -314,8 +317,8 @@ def main(path_index):
 
 
 if __name__ == '__main__':
-    start = 74
-    end = 77
+    start = 77
+    end = 80
     print(f"\ngenerating paths {start} to {end}...\n")
     for i in range(start, end):
         main(i)
