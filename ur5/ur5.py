@@ -1,3 +1,4 @@
+from threading import ExceptHookArgs
 import pybullet as p
 import pybullet_data
 import os
@@ -163,28 +164,45 @@ def getReward(action, jointIds, uid, target):
 
     eeCost = dist(next_state[0], target)
     elbowCost = dist(next_state[1], state[1])
-
-    weight = torch.Tensor([10, 1])
-    rawCost = torch.Tensor([eeCost, elbowCost])
-    # print("rawCost:\t", rawCost)
+    groundColliCost = 0
+    linkStates = p.getLinkStates(uid, jointIds)
+    for ls in linkStates:
+        if ls[0][2] < 0.15:
+            groundColliCost += 1
+    weight = torch.Tensor([10, 1, 10])
+    rawCost = torch.Tensor([eeCost, elbowCost, groundColliCost])
     reward = (weight * rawCost).sum().numpy()
-    # print("reward:\t\t", reward)
+    # print("rawCost:\t", rawCost)
+    # print("weighted:\t", (weight * rawCost))
+    # print("total reward:\t\t", reward)
     return reward
 
-def getEpsReward(episode, jointIds, uid, Horizon, futureStates):
+def getEpsReward(episode, jointIds, uid, Horizon, goalCoords):
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):
         start = h * numJoints
         end = start + numJoints
         action = episode[start:end]
-        reward += getReward(action, jointIds, uid, futureStates[h])
+        reward += getReward(action, jointIds, uid, goalCoords)
     return reward
 
 def applyAction(uid, action):
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
-    for _ in range(SIM_STEPS):
+    maxSimSteps = 150
+    for s in range(maxSimSteps):
         p.stepSimulation()
+        currConfig = getConfig(uid, ACTIVE_JOINTS)[0:8]
+        action = torch.Tensor(action)
+        currConfig = torch.Tensor(currConfig)
+        error = torch.sub(action, currConfig)
+        done = True
+        for e in error:
+            if e > 0.02:
+                done = False
+        if done:
+            # print(f"reached position: \n{action}, \nwith target:\n{currConfig}, \nand error: \n{error} \nin step {s}")
+            break
 
 def main():
     torch_seed = np.random.randint(low=0, high=1000)
@@ -214,14 +232,15 @@ def main():
         'initCoords': initCoords
     }
 
-    traj = makeTrajectory(initCoords, goalCoords)
+    # traj = makeTrajectory(initCoords, goalCoords)
     print("initCoords:\t", initCoords)
     print("initState:\t", initState)
     print("goalCoords:\t", goalCoords)
-    print("traj:\n", traj)
+    # print("traj:\n", traj)
     
     # Constants:
-    Iterations = len(traj) # N - envSteps
+    MAX_ITERATIONS = 1000
+    Iterations = MAX_ITERATIONS # N - envSteps
     Epochs = 40 # T - trainSteps
     Episodes = 200 # G - plans
     Horizon = 10 # H - horizonLength
@@ -246,13 +265,13 @@ def main():
         
         stateId = p.saveState()
 
-        futureStates = []
-        for h in range(Horizon):
-            if envStep + h > len(traj) - 1:
-                futureStates.append(traj[-1])
-            else:
-                futureStates.append(traj[envStep + h])
-        futureStates = torch.stack(futureStates)
+        # futureStates = []
+        # for h in range(Horizon):
+        #     if envStep + h > len(traj) - 1:
+        #         futureStates.append(traj[-1])
+        #     else:
+        #         futureStates.append(traj[envStep + h])
+        # futureStates = torch.stack(futureStates)
         # print(envStep)
         # print("futureStates:\n", futureStates)
         epsMem = []
@@ -263,7 +282,8 @@ def main():
                 p.restoreState(stateId)
                 episode = distr.sample()
                 episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
-                cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates)
+                # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates)
+                cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalCoords)
                 epsMem.append((episode,cost))
             p.restoreState(stateId)
             epsMem = sorted(epsMem, key = lambda x: x[1])
@@ -293,7 +313,14 @@ def main():
         pairs.extend(getConfig(uid, ACTIVE_JOINTS))
         saveRun.append(pairs)
 
-        finalEePos.append(getState(uid)[0].tolist())
+        eePos = getState(uid)[0]
+
+        finalEePos.append(ExceptHookArgs.tolist())
+
+        error = dist(eePos, goalCoords)
+        if e < 0.02:
+            print(f"reached position: \n{eePos}, \nwith target:\n{goalCoords}, \nand error: \n{error} \nin iteration {envStep}")
+            break
 
     finalEePos = np.array(finalEePos)
     traj = np.array(traj)
