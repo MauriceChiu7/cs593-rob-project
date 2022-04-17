@@ -315,7 +315,7 @@ def main():
 
         eePos = getState(uid)[0]
 
-        finalEePos.append(ExceptHookArgs.tolist())
+        finalEePos.append(eePos.tolist())
 
         error = dist(eePos, goalCoords)
         if e < 0.02:
