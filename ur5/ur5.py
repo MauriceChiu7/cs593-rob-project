@@ -240,10 +240,13 @@ def main():
     # Constants:
     MAX_ITERATIONS = 40
     Iterations = MAX_ITERATIONS # N - envSteps
-    Epochs = 40 # T - trainSteps
-    Episodes = 100 # G - plans was 200
+    Epochs = 20 # T - trainSteps was 40
+    Episodes = 200 # G - plans was 200
     Horizon = 5 # H - horizonLength was 10
     TopKEps = int(0.3*Episodes)
+
+    print(f"Iterations: {Iterations}, Epochs: {Epochs}, Episodes: {Episodes}, Horizon: {Horizon}, TopKEps: {TopKEps}")
+
     jointMins,jointMaxes = getLimitPos(ACTIVE_JOINTS, uid)
     jointMins = jointMins*Horizon
     jointMaxes = jointMaxes*Horizon
@@ -273,6 +276,7 @@ def main():
         # futureStates = torch.stack(futureStates)
         # print(envStep)
         # print("futureStates:\n", futureStates)
+
         epsMem = []
         for e in range(Epochs):
             print(f"Epoch {e}")
