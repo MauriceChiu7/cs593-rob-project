@@ -239,11 +239,11 @@ def main():
     # print("traj:\n", traj)
     
     # Constants:
-    MAX_ITERATIONS = 1000
+    MAX_ITERATIONS = 40
     Iterations = MAX_ITERATIONS # N - envSteps
     Epochs = 40 # T - trainSteps
-    Episodes = 200 # G - plans
-    Horizon = 10 # H - horizonLength
+    Episodes = 100 # G - plans was 200
+    Horizon = 5 # H - horizonLength was 10
     TopKEps = int(0.3*Episodes)
     jointMins,jointMaxes = getLimitPos(ACTIVE_JOINTS, uid)
     jointMins = jointMins*Horizon
@@ -318,6 +318,7 @@ def main():
         finalEePos.append(eePos.tolist())
 
         error = dist(eePos, goalCoords)
+        print(f"\neePos: \n{eePos}, \n\ngoalCoords: \n{goalCoords}, \n\nerror: \n{error}")
         if e < 0.02:
             print(f"reached position: \n{eePos}, \nwith target:\n{goalCoords}, \nand error: \n{error} \nin iteration {envStep}")
             break
