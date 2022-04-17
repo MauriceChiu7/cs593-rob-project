@@ -12,6 +12,9 @@ import time
 
 SIM_STEPS = 3
 CTL_FREQ = 20    # Hz
+ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
+END_EFFECTOR_INDEX = 7 # The end effector link index.
+ELBOW_INDEX = 3 # The end effector link index.
 
 """
 Calculates the difference between two vectors.
@@ -153,26 +156,6 @@ def setupTimeStepSlider():
     
     return timeStepId, simStepId
 
-def applyAction(uid, jointIds, action, debugSS):
-    action = torch.tensor(action)
-    torqueScalar = 1
-    if args.robot == 'ur5':
-        # correction = 105
-        # action = torch.where(action > 0, torch.add(action, correction), torch.add(action, -correction))
-        # torqueScalar = 15
-        torqueScalar = 1
-    else:
-        # torqueScalar = 15
-        torqueScalar = 1
-    action = torch.mul(action, torqueScalar)
-    if args.verbose: print(f"action applied: \n{action}")
-    p.setJointMotorControlArray(uid, jointIds, p.TORQUE_CONTROL, forces=action)
-    p.stepSimulation()
-    
-    # for _ in range(SIM_STEPS):
-    # for _ in range(debugSS):
-    #     p.stepSimulation()
-
 def costFunc(currMu, targ):
     cost = diff(currMu, targ)
     if args.verbose: print(f"...cost: {cost}")
@@ -200,16 +183,75 @@ def genActionSeqSetFromNormalDist(mu, sigma, G, H, jointsForceRange):
     if args.verbose: print(f"actionSeqSet.size():\n{actionSeqSet.size()}")
     return actionSeqSet
 
+def getState(uid):
+    eePos = p.getLinkState(uid, END_EFFECTOR_INDEX)[0]
+    elbowPos = p.getLinkState(uid, ELBOW_INDEX)[0]
+    state = torch.Tensor([eePos, elbowPos])
+    return state
+
+
+def getConfig(uid, jointIds):
+    config = []
+    for id in jointIds:
+        # print(p.getJointState(uid, id)[0])
+        config.append(p.getJointState(uid, id)[0])
+    EEPos = getState(uid)[0].tolist()
+    config.append(EEPos[0])
+    config.append(EEPos[1])
+    config.append(EEPos[2])
+    return config
+
+def applyAction(uid, action):
+    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
+    maxSimSteps = 150
+    for s in range(maxSimSteps):
+        p.stepSimulation()
+        currConfig = getConfig(uid, ACTIVE_JOINTS)[0:8]
+        action = torch.Tensor(action)
+        currConfig = torch.Tensor(currConfig)
+        error = torch.sub(action, currConfig)
+        done = True
+        for e in error:
+            if e > 0.02:
+                done = False
+        if done:
+            # print(f"reached position: \n{action}, \nwith target:\n{currConfig}, \nand error: \n{error} \nin step {s}")
+            break
+
+def randomGoal():
+    # Generate random goal state for UR5
+    x = np.random.uniform(-0.7, 0.7)
+    y = np.random.uniform(-0.7, 0.7)
+    z = np.random.uniform(0.1, 0.7)
+    goalCoords = torch.Tensor([x, y, z])
+    p.addUserDebugLine([0,0,0.1], goalCoords, [0,0,1])
+    return goalCoords
+
+def getJointsRange(uid, jointIds):
+    jointsRange = []
+    for a in jointIds:
+        jointInfo = p.getJointInfo(uid, a)
+        jointsRange.append((jointInfo[8], jointInfo[9]))
+    return jointsRange
+
 def main():
     timeStepId = loadEnv()
-    if args.robot == 'ur5':
-        ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
-        uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
-        jointIds = ACTIVE_JOINTS
-    else:
-        uid, jointsForceRange, jointIds = loadA1()
+    uid, jointsForceRange = loadUR5(ACTIVE_JOINTS)
+    jointIds = ACTIVE_JOINTS
     jointsForceIds = setupJointsForceSlider(uid, jointIds)
     timeStepId, simStepId = setupTimeStepSlider()
+    jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
+
+    for i in range(100):
+        random_positions = []
+        for r in jointsRange:
+            rand = np.random.uniform(r[0], r[1])
+            random_positions.append(rand)
+        applyAction(uid, random_positions)
+
+        # time.sleep(1)
+
+    exit()
 
     while 1:
         action = []
