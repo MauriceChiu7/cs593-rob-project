@@ -42,15 +42,22 @@ def loadUR5():
                 p.setCollisionFilterPair(uid, uid, l1, l0, enableCollision)
     return uid
 
-
-def applyAction(uid, jointIds, action):
-    action = torch.Tensor(action)
-    # action = torch.mul(torch.Tensor([1,1,1,1,1,1,0,0]))
-    # print(f"action applied:\n{action}")
-    p.setJointMotorControlArray(uid, jointIds, p.POSITION_CONTROL, action)
-    for _ in range(SIM_STEPS):
-        time.sleep(1./25.)
+def applyAction(uid, action):
+    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
+    maxSimSteps = 150
+    for s in range(maxSimSteps):
         p.stepSimulation()
+        currConfig = getConfig(uid, ACTIVE_JOINTS)[0:8]
+        action = torch.Tensor(action)
+        currConfig = torch.Tensor(currConfig)
+        error = torch.sub(action, currConfig)
+        done = True
+        for e in error:
+            if e > 0.02:
+                done = False
+        if done:
+            # print(f"reached position: \n{action}, \nwith target:\n{currConfig}, \nand error: \n{error} \nin step {s}")
+            break
 
 def getConfig(uid, jointIds):
     jointPositions = []
@@ -77,10 +84,12 @@ def playback(args):
 
     if args.mode == 'mpc':
         path = args.path_number
-        with open(f"./trainingDataWithEE/ur5sample_{path}.pkl", 'rb') as f:
+        with open(f"./trainingDataWithEE/ur5sample.pkl", 'rb') as f:
+        # with open(f"./trainingDataWithEE/ur5sample_{path}.pkl", 'rb') as f:
             tuples = pickle.load(f)
         
-        with open(f"./error/debug_{path}.pkl", 'rb') as f:
+        with open(f"./error/debug.pkl", 'rb') as f:
+        # with open(f"./error/debug_{path}.pkl", 'rb') as f:
             states = pickle.load(f)
     else:
         with open(f"./testRunResults/test.pkl", 'rb') as f:
@@ -122,19 +131,12 @@ def playback(args):
             action = tuple[11:19]
             action = torch.Tensor(action)
             # print(f"action applied:\n{action}")
-            p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
-            for _ in range(SIM_STEPS):
-                time.sleep(1./25.)
-                p.stepSimulation()
+            applyAction(uid, action)
     else: 
         for tuple in tuples:
             action = torch.Tensor(tuple)
-            p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
-            for _ in range(SIM_STEPS):
-                time.sleep(1./25.)
-                p.stepSimulation()
-        # time.sleep(1.)
-    # time.sleep(10)
+            applyAction(uid, action)
+        
     # while 1:
     #     p.stepSimulation()
 
@@ -142,6 +144,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='for playing back actions for the ur5')
 
     parser.add_argument('-m', '--mode', type=str, default='mpc', choices=['mpc', 'nnmpc'], help="use 'mpc' to playback results generated with ur5.py and 'nnmpc' for results generated with nnur5mpc.py")
-    parser.add_argument('-pn', '--path-number', type=int, default=70, help="the path number which you want to see the playback of")
+    parser.add_argument('-pn', '--path-number', type=int, default=999, help="the path number which you want to see the playback of")
     args = parser.parse_args()
     playback(args)

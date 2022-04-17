@@ -171,9 +171,9 @@ def getReward(action, jointIds, uid, target):
     weight = torch.Tensor([10, 1, 10])
     rawCost = torch.Tensor([eeCost, elbowCost, groundColliCost])
     reward = (weight * rawCost).sum().numpy()
-    # print("rawCost:\t", rawCost)
-    # print("weighted:\t", (weight * rawCost))
-    # print("total reward:\t\t", reward)
+    print("rawCost:\t", rawCost)
+    print("weighted:\t", (weight * rawCost))
+    print("total reward:\t\t", reward)
     return reward
 
 def getEpsReward(episode, jointIds, uid, Horizon, goalCoords):
@@ -287,6 +287,7 @@ def main():
             p.restoreState(stateId)
             epsMem = sorted(epsMem, key = lambda x: x[1])
             epsMem = epsMem[0:TopKEps]
+            print("epsMem: \n", epsMem)
             topK = [x[0] for x in epsMem]
             topK = torch.Tensor(topK)
             mu = torch.mean(topK, axis = 0)
@@ -325,16 +326,16 @@ def main():
     finalEePos = np.array(finalEePos)
     traj = np.array(traj)
 
-    with open(trainingFolder + f"ur5sample.pkl", 'wb') as f:
+    with open(trainingFolder + f"ur5sample_999.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
 
-    with open(errorFolder + f"debug.pkl", 'wb') as f:
+    with open(errorFolder + f"debug_999.pkl", 'wb') as f:
         pickle.dump(debug, f)
 
-    with open(errorFolder + f"finalEePos.pkl", 'wb') as f:
+    with open(errorFolder + f"finalEePos_999.pkl", 'wb') as f:
         pickle.dump(finalEePos, f)
 
-    with open(errorFolder + f"traj.pkl", 'wb') as f:
+    with open(errorFolder + f"traj_999.pkl", 'wb') as f:
         pickle.dump(traj, f)
 
     p.disconnect()
