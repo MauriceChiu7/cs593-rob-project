@@ -168,7 +168,7 @@ def getReward(action, jointIds, uid, target):
     for ls in linkStates:
         if ls[0][2] < 0.15:
             groundColliCost += 1
-    weight = torch.Tensor([10, 1, 10])
+    weight = torch.Tensor([10, 1, 2])
     rawCost = torch.Tensor([eeCost, elbowCost, groundColliCost])
     reward = (weight * rawCost).sum().numpy()
     print("rawCost:\t", rawCost)
