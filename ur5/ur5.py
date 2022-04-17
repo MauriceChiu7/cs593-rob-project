@@ -171,9 +171,9 @@ def getReward(action, jointIds, uid, target):
     weight = torch.Tensor([10, 1, 2])
     rawCost = torch.Tensor([eeCost, elbowCost, groundColliCost])
     reward = (weight * rawCost).sum().numpy()
-    print("rawCost:\t", rawCost)
-    print("weighted:\t", (weight * rawCost))
-    print("total reward:\t\t", reward)
+    # print("rawCost:\t", rawCost)
+    # print("weighted:\t", (weight * rawCost))
+    # print("total reward:\t\t", reward)
     return reward
 
 def getEpsReward(episode, jointIds, uid, Horizon, goalCoords):
@@ -287,7 +287,9 @@ def main():
             p.restoreState(stateId)
             epsMem = sorted(epsMem, key = lambda x: x[1])
             epsMem = epsMem[0:TopKEps]
-            print("epsMem: \n", epsMem)
+
+            # print("epsMem: \n", epsMem)
+
             topK = [x[0] for x in epsMem]
             topK = torch.Tensor(topK)
             mu = torch.mean(topK, axis = 0)
@@ -317,10 +319,10 @@ def main():
 
         finalEePos.append(eePos.tolist())
 
-        error = dist(eePos, goalCoords)
-        print(f"\neePos: \n{eePos}, \n\ngoalCoords: \n{goalCoords}, \n\nerror: \n{error}")
+        distError = dist(eePos, goalCoords)
+        print(f"\neePos: \n{eePos}, \n\ngoalCoords: \n{goalCoords}, \n\ndistError: \n{distError}")
         if e < 0.02:
-            print(f"reached position: \n{eePos}, \nwith target:\n{goalCoords}, \nand error: \n{error} \nin iteration {envStep}")
+            print(f"reached position: \n{eePos}, \nwith target:\n{goalCoords}, \nand distError: \n{distError} \nin iteration {envStep}")
             break
 
     finalEePos = np.array(finalEePos)
