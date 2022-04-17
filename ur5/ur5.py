@@ -1,4 +1,3 @@
-from threading import ExceptHookArgs
 import pybullet as p
 import pybullet_data
 import os
