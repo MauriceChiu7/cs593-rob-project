@@ -47,8 +47,8 @@ def loadEnv():
 Loads the UR5 robot.
 """
 def loadUR5():
-    # p.resetDebugVisualizerCamera(cameraDistance=1.2, cameraYaw=-45, cameraPitch=-45, cameraTargetPosition=(0,0,0.1))
-    p.resetDebugVisualizerCamera(cameraDistance=0.02, cameraYaw=90, cameraPitch=-0.125, cameraTargetPosition=(0,0.25,0.1))
+    p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=-45, cameraPitch=-45, cameraTargetPosition=(0,0,0.1))
+    # p.resetDebugVisualizerCamera(cameraDistance=0.02, cameraYaw=90, cameraPitch=-0.125, cameraTargetPosition=(0,0.25,0.1))
     path = f"{os.getcwd()}/../ur5pybullet"
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
@@ -134,7 +134,9 @@ def playback(args):
     
     uid = loadUR5()
     
-   
+    # while 1:
+    #     drawHeight(uid)
+    #     p.stepSimulation()
 
     # goalCoords       tensor([-0.0587, -0.2683,  0.2389])
     # initState        tensor([-0.5888,  0.1401, -2.1266,  0.5458, -1.2973,  1.6745, -0.8886, -0.5362])
