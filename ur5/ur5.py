@@ -34,6 +34,26 @@ Calculates distance between two vectors.
 def dist(p1, p2):
     return magnitude(diff(p1, p2))
 
+MIN_STATES = [
+    -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, -0.9208793640136719, -0.9239162802696228, -0.7005515694618225, 
+    -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, 
+    -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, -0.9208793640136719, -0.9239162802696228, -0.7005515694618225
+    ]
+MAX_STATES = [
+    np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 0.9053947925567627, 0.9046874642372131, 1.1148362159729004, 
+    np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 
+    np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 0.9053947925567627, 0.9046874642372131, 1.1148362159729004]
+
+STATE_RANGE = np.subtract(MAX_STATES, MIN_STATES)
+
+def normalize(data):
+    diff = np.subtract(data, MIN_STATES)
+    normalState = diff/STATE_RANGE
+    return normalState
+
+def unnormalize(normalizedData):
+    return np.add(normalizedData * STATE_RANGE, MIN_STATES)
+
 """
 Loads pybullet environment with a horizontal plane and earth like gravity.
 """
@@ -154,39 +174,44 @@ def getState(uid):
     state = torch.Tensor([eePos, elbowPos])
     return state
 
-def getReward(action, jointIds, uid, target):
+def getReward(action, jointIds, uid, target, distToGoal):
     state = getState(uid)
-    eeCost = dist(state[0], target)
+    # eeCost = dist(state[0], target)
 
     applyAction(uid, action)
 
     next_state = getState(uid)
 
-    nextEeCost = dist(next_state[0], target)
+    distCost = dist(next_state[0], target)
     elbowCost = dist(next_state[1], state[1])
     groundColliCost = 0 
     linkStates = p.getLinkStates(uid, jointIds)
+    bigActionCost = magnitude(action)
     for ls in linkStates:
         if ls[0][2] < 0.15:
             groundColliCost += 1
-    weight = torch.Tensor([10, 1, 2])
-    rawCost = torch.Tensor([nextEeCost, elbowCost, groundColliCost])
+    weight = torch.Tensor([10, 1, 2, 1])
+    rawCost = torch.Tensor([distCost, elbowCost, groundColliCost, bigActionCost])
     reward = (weight * rawCost).sum().numpy()
-    if nextEeCost > eeCost: 
+    if distCost > distToGoal: 
         reward += 10
     # print("rawCost:\t", rawCost)
     # print("weighted:\t", (weight * rawCost))
     # print("total reward:\t\t", reward)
+    # print("\n")
     return reward
 
-def getEpsReward(episode, jointIds, uid, Horizon, futureStates):
+# def getEpsReward(episode, jointIds, uid, Horizon, futureStates):
+def getEpsReward(episode, jointIds, uid, Horizon, goalCoords, distToGoal):
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):
         start = h * numJoints
         end = start + numJoints
         action = episode[start:end]
-        reward += getReward(action, jointIds, uid, futureStates[h])
+        action = torch.Tensor(action)
+        # reward += getReward(action, jointIds, uid, futureStates[h])
+        reward += getReward(action, jointIds, uid, goalCoords, distToGoal)
     return reward
 
 def applyAction(uid, action):
@@ -234,19 +259,23 @@ def main():
         'initCoords': initCoords
     }
 
-    traj = makeTrajectory(initCoords, goalCoords)
-    print("initCoords:\t", initCoords)
+    distToGoal = dist(torch.Tensor(initCoords), torch.Tensor(goalCoords))
+
+    # traj = makeTrajectory(initCoords, goalCoords)
+    print("\n\ninitCoords:\t", initCoords)
     print("initState:\t", initState)
     print("goalCoords:\t", goalCoords)
-    print("traj:\n", traj)
+    print("distToGoal:\t", distToGoal)
+    # print("traj:\n", traj)
     
     # Constants:
     MAX_ITERATIONS = 40
-    Iterations = len(traj) # N - envSteps
+    # Iterations = len(traj) # N - envSteps
+    Iterations = MAX_ITERATIONS # N - envSteps
     Epochs = 20 # T - trainSteps was 40
-    Episodes = 200 # G - plans was 200
-    Horizon = 5 # H - horizonLength was 10
-    TopKEps = int(0.3*Episodes)
+    Episodes = 600 # G - plans was 200
+    Horizon = 1 # H - horizonLength was 10, 5
+    TopKEps = int(0.2*Episodes) # was int(0.3*Episodes) 
 
     print(f"Iterations: {Iterations}, Epochs: {Epochs}, Episodes: {Episodes}, Horizon: {Horizon}, TopKEps: {TopKEps}")
 
@@ -262,6 +291,9 @@ def main():
     finalEePos = []
     for envStep in range(Iterations):
         print(f"Running Iteration {envStep} ...")
+        eePos = getState(uid)[0]
+        distError = dist(eePos, goalCoords)
+        print("prevDistToGoal:\t", distError)
 
         mu = torch.Tensor([0]*(len(ACTIVE_JOINTS) * Horizon))
         cov = torch.eye(len(mu)) * ((np.pi/2) ** 2)
@@ -270,15 +302,14 @@ def main():
         
         stateId = p.saveState()
 
-        futureStates = []
-        for h in range(Horizon):
-            if envStep + h > len(traj) - 1:
-                futureStates.append(traj[-1])
-            else:
-                futureStates.append(traj[envStep + h])
-        futureStates = torch.stack(futureStates)
-        print(envStep)
-        print("futureStates:\n", futureStates)
+        # futureStates = []
+        # for h in range(Horizon):
+        #     if envStep + h > len(traj) - 1:
+        #         futureStates.append(traj[-1])
+        #     else:
+        #         futureStates.append(traj[envStep + h])
+        # futureStates = torch.stack(futureStates)
+        # print("futureStates:\n", futureStates)
 
         epsMem = []
         for e in range(Epochs):
@@ -288,8 +319,8 @@ def main():
                 p.restoreState(stateId)
                 episode = distr.sample()
                 episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
-                cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates)
-                # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalCoords)
+                # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates)
+                cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalCoords, distToGoal)
                 epsMem.append((episode,cost))
             p.restoreState(stateId)
             epsMem = sorted(epsMem, key = lambda x: x[1])
@@ -315,6 +346,7 @@ def main():
         pairs.extend(bestAction)
         
         applyAction(uid, bestAction)
+        distToGoal = dist(torch.Tensor(initCoords), torch.Tensor(goalCoords))
 
         temp = p.saveState()
         p.restoreState(temp)
@@ -327,13 +359,13 @@ def main():
         finalEePos.append(eePos.tolist())
 
         distError = dist(eePos, goalCoords)
-        print(f"\neePos: \n{eePos}, \n\ngoalCoords: \n{goalCoords}, \n\ndistError: \n{distError}")
-        if e < 0.02:
+        print(f"\neePos: \n{eePos}, \n\ngoalCoords: \n{goalCoords}, \n\nnextDistError: \n{distError}")
+        if distError < 0.02:
             print(f"reached position: \n{eePos}, \nwith target:\n{goalCoords}, \nand distError: \n{distError} \nin iteration {envStep}")
             break
 
     finalEePos = np.array(finalEePos)
-    traj = np.array(traj)
+    # traj = np.array(traj)
 
     with open(trainingFolder + f"ur5sample_999.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
@@ -344,8 +376,8 @@ def main():
     with open(errorFolder + f"finalEePos_999.pkl", 'wb') as f:
         pickle.dump(finalEePos, f)
 
-    with open(errorFolder + f"traj_999.pkl", 'wb') as f:
-        pickle.dump(traj, f)
+    # with open(errorFolder + f"traj_999.pkl", 'wb') as f:
+    #     pickle.dump(traj, f)
 
     p.disconnect()
     # while 1:
