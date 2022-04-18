@@ -124,10 +124,8 @@ def randomInit(uid):
     for r in jointsRange:
         rand = np.random.uniform(r[0], r[1])
         random_positions.append(rand)
-    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, random_positions)
-    # Give it some time to move there
-    for _ in range(100):
-        p.stepSimulation()
+    random_positions = torch.Tensor(random_positions)
+    applyAction(uid, random_positions)
     initState = getConfig(uid, ACTIVE_JOINTS)
     initCoords = torch.Tensor(p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0])
     p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])
@@ -225,7 +223,7 @@ def applyAction(uid, action):
         error = torch.sub(action, currConfig)
         done = True
         for e in error:
-            if e > 0.02:
+            if abs(e) > 0.02:
                 done = False
         if done:
             # print(f"reached position: \n{action}, \nwith target:\n{currConfig}, \nand error: \n{error} \nin step {s}")
@@ -367,13 +365,15 @@ def main():
     finalEePos = np.array(finalEePos)
     # traj = np.array(traj)
 
-    with open(trainingFolder + f"ur5sample_1001.pkl", 'wb') as f:
+    pathNum = 1002
+
+    with open(trainingFolder + f"ur5sample_{pathNum}.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
 
-    with open(errorFolder + f"debug_1001.pkl", 'wb') as f:
+    with open(errorFolder + f"debug_{pathNum}.pkl", 'wb') as f:
         pickle.dump(debug, f)
 
-    with open(errorFolder + f"finalEePos_1001.pkl", 'wb') as f:
+    with open(errorFolder + f"finalEePos_{pathNum}.pkl", 'wb') as f:
         pickle.dump(finalEePos, f)
 
     # with open(errorFolder + f"traj_999.pkl", 'wb') as f:
