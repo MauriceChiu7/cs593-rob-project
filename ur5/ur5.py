@@ -136,7 +136,7 @@ def randomGoal():
     # Generate random goal state for UR5
     x = np.random.uniform(-0.7, 0.7)
     y = np.random.uniform(-0.7, 0.7)
-    z = np.random.uniform(0.1, 0.7)
+    z = np.random.uniform(0.15, 0.7)
     goalCoords = torch.Tensor([x, y, z])
     p.addUserDebugLine([0,0,0.1], goalCoords, [0,0,1])
     return goalCoords
@@ -195,10 +195,13 @@ def getReward(action, jointIds, uid, target, distToGoal):
     bigActionCost = magnitude(action)
 
     jointPositions = getJointPos(uid)
+    
+    jointZs = []
     for pos in jointPositions:
+        jointZs.append(pos[2])
         if pos[2] < 0.15:
             groundColliCost += 1
-
+    # print("jointZs:\t", jointZs)
 
     # linkStates = p.getLinkStates(uid, jointIds)
     # for ls in linkStates:
@@ -288,9 +291,9 @@ def main():
     # Iterations = len(traj) # N - envSteps
     Iterations = MAX_ITERATIONS # N - envSteps
     Epochs = 20 # T - trainSteps was 40
-    Episodes = 1000 # G - plans was 200
+    Episodes = 1200 # G - plans was 200
     Horizon = 1 # H - horizonLength was 10, 5
-    TopKEps = int(0.1*Episodes) # was int(0.3*Episodes) 
+    TopKEps = int(0.15*Episodes) # was int(0.3*Episodes)
 
     print(f"Iterations: {Iterations}, Epochs: {Epochs}, Episodes: {Episodes}, Horizon: {Horizon}, TopKEps: {TopKEps}")
 
@@ -382,7 +385,7 @@ def main():
     finalEePos = np.array(finalEePos)
     # traj = np.array(traj)
 
-    pathNum = 1004
+    pathNum = 1008
 
     with open(trainingFolder + f"ur5sample_{pathNum}.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
