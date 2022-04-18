@@ -365,7 +365,7 @@ def main():
     finalEePos = np.array(finalEePos)
     # traj = np.array(traj)
 
-    pathNum = 1003
+    pathNum = 1004
 
     with open(trainingFolder + f"ur5sample_{pathNum}.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
