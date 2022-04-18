@@ -27,7 +27,8 @@ def loadEnv():
 Loads the UR5 robot.
 """
 def loadUR5():
-    p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=-70, cameraPitch=-10, cameraTargetPosition=(0,0,0))
+    p.resetDebugVisualizerCamera(cameraDistance=1.2, cameraYaw=-10, cameraPitch=-0, cameraTargetPosition=(0,0,0.1))
+    # p.resetDebugVisualizerCamera(cameraDistance=0.05, cameraYaw=90, cameraPitch=-0.125, cameraTargetPosition=(0,0.25,0.1))
     path = f"{os.getcwd()}/../ur5pybullet"
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
@@ -42,18 +43,27 @@ def loadUR5():
                 p.setCollisionFilterPair(uid, uid, l1, l0, enableCollision)
     return uid
 
+def drawHeight(uid):
+    for j in ACTIVE_JOINTS:
+        jointPos = p.getLinkState(uid, j)[0]
+        p.addUserDebugLine(jointPos, [jointPos[0], jointPos[1], 3], [0,1,0], lineWidth=10, lifeTime=0.1)
+
 def applyAction(uid, action):
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
     maxSimSteps = 150
     for s in range(maxSimSteps):
+        # drawHeight(uid)
+        print(s)
+        time.sleep(1./25)
         p.stepSimulation()
         currConfig = getConfig(uid, ACTIVE_JOINTS)[0:8]
         action = torch.Tensor(action)
         currConfig = torch.Tensor(currConfig)
         error = torch.sub(action, currConfig)
+        print("error:\n", error)
         done = True
         for e in error:
-            if e > 0.02:
+            if abs(e) > 0.02:
                 done = False
         if done:
             # print(f"reached position: \n{action}, \nwith target:\n{currConfig}, \nand error: \n{error} \nin step {s}")
@@ -68,15 +78,10 @@ def getConfig(uid, jointIds):
     return jointPositions
 
 def moveTo(uid, position):
-    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, position)
-    # Give it some time to move there
-    # for _ in range(100):
-    for _ in range(SIM_STEPS):
-        time.sleep(1./25.)
-        p.stepSimulation()
+    applyAction(uid, position)
     initState = getConfig(uid, ACTIVE_JOINTS)
     initCoords = torch.Tensor(p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0])
-    p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])
+    # p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])
     # p.addUserDebugText("Replaying", [0.2, 0.2, 0], [0, 0, 10])
     return initState, initCoords
 
@@ -84,12 +89,12 @@ def playback(args):
 
     if args.mode == 'mpc':
         path = args.path_number
-        with open(f"./trainingDataWithEE/ur5sample.pkl", 'rb') as f:
-        # with open(f"./trainingDataWithEE/ur5sample_{path}.pkl", 'rb') as f:
+        # with open(f"./trainingDataWithEE/ur5sample.pkl", 'rb') as f:
+        with open(f"./trainingDataWithEE/ur5sample_{path}.pkl", 'rb') as f:
             tuples = pickle.load(f)
         
-        with open(f"./error/debug.pkl", 'rb') as f:
-        # with open(f"./error/debug_{path}.pkl", 'rb') as f:
+        # with open(f"./error/debug.pkl", 'rb') as f:
+        with open(f"./error/debug_{path}.pkl", 'rb') as f:
             states = pickle.load(f)
     else:
         with open(f"./testRunResults/test.pkl", 'rb') as f:
@@ -105,20 +110,26 @@ def playback(args):
     # initCoords       tensor([-0.3674,  0.0948,  0.3818])
     if args.mode == 'mpc':
         initCoords = states["initCoords"]
-        position = states["initState"]
+        position = states["initState"][0:8]
         goalCoords = states["goalCoords"]
 
-        replay_initState, replay_initCoords = moveTo(uid, position)
+        print("position\t", position)
 
+        p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])
+        p.addUserDebugLine([0,0,0.1], goalCoords, [0,0,1])
+        
+        replay_initState, replay_initCoords = moveTo(uid, position)
         print("initCoords\t", initCoords)
         print("replay_initCoords\t", replay_initCoords)
     else:
         initCoords = [-0.8144, -0.1902,  0.1]
         goalCoords = [-0.6484, -0.3258,  0.3040]
+        p.addUserDebugLine([0,0,0.1], goalCoords, [0,0,1])
+        p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])
 
 
-    p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])
-    p.addUserDebugLine([0,0,0.1], goalCoords, [0,0,1])
+    
+    
 
     # while 1:
     #     p.stepSimulation()
