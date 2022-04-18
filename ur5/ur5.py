@@ -172,6 +172,15 @@ def getState(uid):
     state = torch.Tensor([eePos, elbowPos])
     return state
 
+def getJointPos(uid):
+    jointStates = p.getLinkStates(uid, ACTIVE_JOINTS)
+    jointPos = []
+    for j in jointStates:
+        x, y, z = j[0]
+        jointPos.append([x, y, z])
+    jointPos[1] = torch.sub(torch.Tensor(jointPos[1]),torch.mul(diff(torch.Tensor(jointPos[1]), torch.Tensor(jointPos[4])), 0.3)).tolist()
+    return jointPos
+
 def getReward(action, jointIds, uid, target, distToGoal):
     state = getState(uid)
     # eeCost = dist(state[0], target)
@@ -183,11 +192,19 @@ def getReward(action, jointIds, uid, target, distToGoal):
     distCost = dist(next_state[0], target)
     elbowCost = dist(next_state[1], state[1])
     groundColliCost = 0 
-    linkStates = p.getLinkStates(uid, jointIds)
     bigActionCost = magnitude(action)
-    for ls in linkStates:
-        if ls[0][2] < 0.15:
+
+    jointPositions = getJointPos(uid)
+    for pos in jointPositions:
+        if pos[2] < 0.15:
             groundColliCost += 1
+
+
+    # linkStates = p.getLinkStates(uid, jointIds)
+    # for ls in linkStates:
+    #     if ls[0][2] < 0.15:
+    #         groundColliCost += 1
+
     weight = torch.Tensor([10, 1, 2, 1])
     rawCost = torch.Tensor([distCost, elbowCost, groundColliCost, bigActionCost])
     reward = (weight * rawCost).sum().numpy()

@@ -11,6 +11,25 @@ END_EFFECTOR_INDEX = 7 # The end effector link index.
 CTL_FREQ = 20
 SIM_STEPS = 3
 
+
+"""
+Calculates the difference between two vectors.
+"""
+def diff(v1, v2):
+    return torch.sub(v1, v2)
+
+"""
+Calculates the magnitude of a vector.
+"""
+def magnitude(v):
+    return torch.sqrt(torch.sum(torch.pow(v, 2)))
+
+"""
+Calculates distance between two vectors.
+"""
+def dist(p1, p2):
+    return magnitude(diff(p1, p2))
+
 """
 Loads pybullet environment with a horizontal plane and earth like gravity.
 """
@@ -19,6 +38,7 @@ def loadEnv():
     p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
+    # p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0])
     p.setGravity(0, 0, -9.8)
     # p.setTimeStep(1./50.)
     p.setTimeStep(1./CTL_FREQ/SIM_STEPS)
@@ -27,8 +47,8 @@ def loadEnv():
 Loads the UR5 robot.
 """
 def loadUR5():
-    p.resetDebugVisualizerCamera(cameraDistance=1.2, cameraYaw=-10, cameraPitch=-0, cameraTargetPosition=(0,0,0.1))
-    # p.resetDebugVisualizerCamera(cameraDistance=0.05, cameraYaw=90, cameraPitch=-0.125, cameraTargetPosition=(0,0.25,0.1))
+    # p.resetDebugVisualizerCamera(cameraDistance=1.2, cameraYaw=-45, cameraPitch=-45, cameraTargetPosition=(0,0,0.1))
+    p.resetDebugVisualizerCamera(cameraDistance=0.02, cameraYaw=90, cameraPitch=-0.125, cameraTargetPosition=(0,0.25,0.1))
     path = f"{os.getcwd()}/../ur5pybullet"
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
@@ -43,10 +63,19 @@ def loadUR5():
                 p.setCollisionFilterPair(uid, uid, l1, l0, enableCollision)
     return uid
 
+def getJointPos(uid):
+    jointStates = p.getLinkStates(uid, ACTIVE_JOINTS)
+    jointPos = []
+    for j in jointStates:
+        x, y, z = j[0]
+        jointPos.append([x, y, z])
+    jointPos[1] = torch.sub(torch.Tensor(jointPos[1]),torch.mul(diff(torch.Tensor(jointPos[1]), torch.Tensor(jointPos[4])), 0.3)).tolist()
+    return jointPos
+
 def drawHeight(uid):
-    for j in ACTIVE_JOINTS:
-        jointPos = p.getLinkState(uid, j)[0]
-        p.addUserDebugLine(jointPos, [jointPos[0], jointPos[1], 3], [0,1,0], lineWidth=10, lifeTime=0.1)
+    jointPositions = getJointPos(uid)
+    for pos in jointPositions:
+        p.addUserDebugLine([pos[0], pos[1], pos[2]], [pos[0], pos[1], 0.1], [0,1,0], lineWidth=10, lifeTime=0.1)
 
 def applyAction(uid, action):
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
@@ -105,6 +134,8 @@ def playback(args):
     
     uid = loadUR5()
     
+   
+
     # goalCoords       tensor([-0.0587, -0.2683,  0.2389])
     # initState        tensor([-0.5888,  0.1401, -2.1266,  0.5458, -1.2973,  1.6745, -0.8886, -0.5362])
     # initCoords       tensor([-0.3674,  0.0948,  0.3818])
@@ -148,8 +179,11 @@ def playback(args):
             action = torch.Tensor(tuple)
             applyAction(uid, action)
         
+
+
     # while 1:
     #     p.stepSimulation()
+    #     drawHeight(uid)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='for playing back actions for the ur5')
