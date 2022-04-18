@@ -273,9 +273,9 @@ def main():
     # Iterations = len(traj) # N - envSteps
     Iterations = MAX_ITERATIONS # N - envSteps
     Epochs = 20 # T - trainSteps was 40
-    Episodes = 600 # G - plans was 200
+    Episodes = 1000 # G - plans was 200
     Horizon = 1 # H - horizonLength was 10, 5
-    TopKEps = int(0.2*Episodes) # was int(0.3*Episodes) 
+    TopKEps = int(0.1*Episodes) # was int(0.3*Episodes) 
 
     print(f"Iterations: {Iterations}, Epochs: {Epochs}, Episodes: {Episodes}, Horizon: {Horizon}, TopKEps: {TopKEps}")
 
@@ -367,13 +367,13 @@ def main():
     finalEePos = np.array(finalEePos)
     # traj = np.array(traj)
 
-    with open(trainingFolder + f"ur5sample_999.pkl", 'wb') as f:
+    with open(trainingFolder + f"ur5sample_1001.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
 
-    with open(errorFolder + f"debug_999.pkl", 'wb') as f:
+    with open(errorFolder + f"debug_1001.pkl", 'wb') as f:
         pickle.dump(debug, f)
 
-    with open(errorFolder + f"finalEePos_999.pkl", 'wb') as f:
+    with open(errorFolder + f"finalEePos_1001.pkl", 'wb') as f:
         pickle.dump(finalEePos, f)
 
     # with open(errorFolder + f"traj_999.pkl", 'wb') as f:
