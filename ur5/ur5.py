@@ -179,14 +179,14 @@ def getReward(action, jointIds, uid, target):
     # print("total reward:\t\t", reward)
     return reward
 
-def getEpsReward(episode, jointIds, uid, Horizon, goalCoords):
+def getEpsReward(episode, jointIds, uid, Horizon, futureStates):
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):
         start = h * numJoints
         end = start + numJoints
         action = episode[start:end]
-        reward += getReward(action, jointIds, uid, goalCoords)
+        reward += getReward(action, jointIds, uid, futureStates[h])
     return reward
 
 def applyAction(uid, action):
@@ -234,15 +234,15 @@ def main():
         'initCoords': initCoords
     }
 
-    # traj = makeTrajectory(initCoords, goalCoords)
+    traj = makeTrajectory(initCoords, goalCoords)
     print("initCoords:\t", initCoords)
     print("initState:\t", initState)
     print("goalCoords:\t", goalCoords)
-    # print("traj:\n", traj)
+    print("traj:\n", traj)
     
     # Constants:
     MAX_ITERATIONS = 40
-    Iterations = MAX_ITERATIONS # N - envSteps
+    Iterations = len(traj) # N - envSteps
     Epochs = 20 # T - trainSteps was 40
     Episodes = 200 # G - plans was 200
     Horizon = 5 # H - horizonLength was 10
@@ -270,15 +270,15 @@ def main():
         
         stateId = p.saveState()
 
-        # futureStates = []
-        # for h in range(Horizon):
-        #     if envStep + h > len(traj) - 1:
-        #         futureStates.append(traj[-1])
-        #     else:
-        #         futureStates.append(traj[envStep + h])
-        # futureStates = torch.stack(futureStates)
-        # print(envStep)
-        # print("futureStates:\n", futureStates)
+        futureStates = []
+        for h in range(Horizon):
+            if envStep + h > len(traj) - 1:
+                futureStates.append(traj[-1])
+            else:
+                futureStates.append(traj[envStep + h])
+        futureStates = torch.stack(futureStates)
+        print(envStep)
+        print("futureStates:\n", futureStates)
 
         epsMem = []
         for e in range(Epochs):
@@ -288,8 +288,8 @@ def main():
                 p.restoreState(stateId)
                 episode = distr.sample()
                 episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
-                # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates)
-                cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalCoords)
+                cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates)
+                # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalCoords)
                 epsMem.append((episode,cost))
             p.restoreState(stateId)
             epsMem = sorted(epsMem, key = lambda x: x[1])
