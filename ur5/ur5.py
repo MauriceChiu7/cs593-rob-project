@@ -16,6 +16,7 @@ CTL_FREQ = 20
 SIM_STEPS = 3
 GAMMA = 0.9
 
+
 """
 Calculates the difference between two vectors.
 """
@@ -188,7 +189,6 @@ def getReward(action, jointIds, uid, target, distToGoal):
     applyAction(uid, action)
 
     next_state = getState(uid)
-
     distCost = dist(next_state[0], target)
     elbowCost = dist(next_state[1], state[1])
     groundColliCost = 0 
@@ -250,6 +250,7 @@ def applyAction(uid, action):
             break
 
 def main():
+    initialTime = time.time()
     torch_seed = np.random.randint(low=0, high=1000)
     np_seed = np.random.randint(low=0, high=1000)
     py_seed = np.random.randint(low=0, high=1000)
@@ -306,8 +307,13 @@ def main():
     saveRun = []
     saveAction = []
 
+
     finalEePos = []
+    finalElbowPos = []
+    finalGroundCost = []
+    iterationTimes = []
     for envStep in range(Iterations):
+        startTime = time.time()
         print(f"Running Iteration {envStep} ...")
         eePos = getState(uid)[0]
         distError = dist(eePos, goalCoords)
@@ -366,15 +372,29 @@ def main():
         applyAction(uid, bestAction)
         distToGoal = dist(torch.Tensor(initCoords), torch.Tensor(goalCoords))
 
+        # Copied from getReward()
+        groundColliCost = 0 
+        jointPositions = getJointPos(uid)
+        
+        jointZs = []
+        for pos in jointPositions:
+            jointZs.append(pos[2])
+            if pos[2] < 0.15:
+                groundColliCost += 1
+
         temp = p.saveState()
         p.restoreState(temp)
 
         pairs.extend(getConfig(uid, ACTIVE_JOINTS))
         saveRun.append(pairs)
 
-        eePos = getState(uid)[0]
+        eePos, elbowPos = getState(uid)
+        iterationTime = time.time() - startTime
 
         finalEePos.append(eePos.tolist())
+        finalElbowPos.append(elbowPos.tolist())
+        finalGroundCost.append(groundColliCost)
+        iterationTimes.append(iterationTime)
 
         distError = dist(eePos, goalCoords)
         print(f"\neePos: \n{eePos}, \n\ngoalCoords: \n{goalCoords}, \n\nnextDistError: \n{distError}")
@@ -387,21 +407,33 @@ def main():
 
     pathNum = 1008
 
+    stateInfo = {
+        'finalEePos': finalEePos,
+        'finalElbowPos': finalElbowPos,
+        'finalGroundCost': finalGroundCost,
+        'iterationTimes': iterationTimes,
+        'timeDuration': totalDuration,
+    }
+
     with open(trainingFolder + f"ur5sample_{pathNum}.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
 
     with open(errorFolder + f"debug_{pathNum}.pkl", 'wb') as f:
         pickle.dump(debug, f)
 
+    with open(errorFolder + f"stateInfo_{pathNum}.pkl", 'wb') as f:
+        pickle.dump(stateInfo, f)
+
     with open(errorFolder + f"finalEePos_{pathNum}.pkl", 'wb') as f:
         pickle.dump(finalEePos, f)
 
     # with open(errorFolder + f"traj_999.pkl", 'wb') as f:
     #     pickle.dump(traj, f)
-
     p.disconnect()
     # while 1:
     #     p.stepSimulation()
+    totalDuration = time.time() - initialTime
+
 
 
 if __name__ == '__main__':
