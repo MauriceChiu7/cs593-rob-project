@@ -93,6 +93,8 @@ If the file this program is trying to read doesn't exist, please be sure to run 
 **Produces:**
 N/A
 
+---
+
 #### Auxiliary Files for the UR5:
 1. `plot.py` plots the Error vs Epoch graph using data from `/cs593-rob-project/ur5/graphs/error_epoch.pkl`.
 2. `plotTrajComp.py` plots the trajectory and the end-effector positions at each environment step for a single path. To specify which path to plot, change the path number in line 14 of the code `path = 37` to the desired path number.
