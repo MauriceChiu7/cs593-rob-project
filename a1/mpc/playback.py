@@ -11,6 +11,15 @@ robotHeight = 0.420393
 
 
 def loadDog():
+    """
+    Description: loads A1 and the environment
+
+    Returns:
+    :quadruped - {Int} ID of the robot
+    :jointIds - {List of Int} list of joint IDs
+    
+    """
+
     p.connect(p.GUI)
     plane = p.loadURDF("../../unitree_pybullet/data/plane.urdf")
     p.setGravity(0,0,-9.8)
@@ -25,7 +34,7 @@ def loadDog():
                 p.setCollisionFilterPair(quadruped, quadruped, 2,5,enableCollision)
     jointIds=[]
     paramIds=[]
-    maxForceId = p.addUserDebugParameter("maxForce",0,100,20)
+
     for j in range (p.getNumJoints(quadruped)):
         p.changeDynamics(quadruped,j,linearDamping=0, angularDamping=0)
         info = p.getJointInfo(quadruped,j)
@@ -35,12 +44,16 @@ def loadDog():
             jointIds.append(j)
     p.getCameraImage(480,320)
     p.setRealTimeSimulation(0)
-    joints=[]
-    return maxForceId, quadruped, jointIds
+
+    return quadruped, jointIds
 
 
 def main(args):
-    maxForceId, quadruped, jointIds = loadDog()
+    """
+    Executes a set of actions in Pybullet environment. Specify file on the command line.
+    """
+
+    quadruped, jointIds = loadDog()
     for _ in range(100):
         p.stepSimulation()
 
