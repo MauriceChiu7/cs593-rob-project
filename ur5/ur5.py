@@ -152,7 +152,24 @@ def randomInit(uid):
         rand = np.random.uniform(r[0], r[1])
         random_positions.append(rand)
     random_positions = torch.Tensor(random_positions)
-    applyAction(uid, random_positions)
+
+    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, random_positions)
+    # p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.TORQUE_CONTROL, forces=action)
+    maxSimSteps = 150
+    for s in range(maxSimSteps):
+        p.stepSimulation()
+        currConfig = getConfig(uid, ACTIVE_JOINTS)
+        random_positions = torch.Tensor(random_positions)
+        currConfig = torch.Tensor(currConfig)
+        error = torch.sub(random_positions, currConfig)
+        done = True
+        for e in error:
+            if abs(e) > 0.02:
+                done = False
+        if done:
+            # print(f"reached position: \n{random_positions}, \nwith target:\n{currConfig}, \nand error: \n{error} \nin step {s}")
+            break
+
     initState = getConfig(uid, ACTIVE_JOINTS)
     initCoords = torch.Tensor(p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0])
     p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])
@@ -247,7 +264,8 @@ def getReward(action, jointIds, uid, target, distToGoal):
     return reward
 
 # def getEpsReward(episode, jointIds, uid, Horizon, futureStates):
-def getEpsReward(episode, jointIds, uid, Horizon, goalCoords, distToGoal):
+# def getEpsReward(episode, jointIds, uid, Horizon, goalCoords, distToGoal):
+def getEpsReward(episode, jointIds, uid, Horizon, futureStates, distToGoal):
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):
@@ -256,11 +274,13 @@ def getEpsReward(episode, jointIds, uid, Horizon, goalCoords, distToGoal):
         action = episode[start:end]
         action = torch.Tensor(action)
         # reward += getReward(action, jointIds, uid, futureStates[h])
-        reward += getReward(action, jointIds, uid, goalCoords, distToGoal)
+        # reward += getReward(action, jointIds, uid, goalCoords, distToGoal)
+        reward += getReward(action, jointIds, uid, futureStates[h], distToGoal)
     return reward
 
 def applyAction(uid, action):
-    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
+    # p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
+    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.TORQUE_CONTROL, forces=action)
     maxSimSteps = 150
     for s in range(maxSimSteps):
         p.stepSimulation()
@@ -307,20 +327,20 @@ def main():
 
     distToGoal = dist(torch.Tensor(initCoords), torch.Tensor(goalCoords))
 
-    # traj = makeTrajectory(initCoords, goalCoords)
+    traj = makeTrajectory(initCoords, goalCoords)
     print("\n\ninitCoords:\t", initCoords)
     print("initState:\t", initState)
     print("goalCoords:\t", goalCoords)
     print("distToGoal:\t", distToGoal)
-    # print("traj:\n", traj)
+    print("traj:\n", traj)
     
     # Constants:
-    MAX_ITERATIONS = 40
-    # Iterations = len(traj) # N - envSteps
-    Iterations = MAX_ITERATIONS # N - envSteps
+    # MAX_ITERATIONS = 40
+    Iterations = len(traj) # N - envSteps
+    # Iterations = MAX_ITERATIONS # N - envSteps
     Epochs = 20 # T - trainSteps was 40
-    Episodes = 1200 # G - plans was 200
-    Horizon = 1 # H - horizonLength was 10, 5
+    Episodes = 400 # G - plans was 200, 1200
+    Horizon = 5 # H - horizonLength was 10, 5, 1
     TopKEps = int(0.15*Episodes) # was int(0.3*Episodes)
 
     print(f"Iterations: {Iterations}, Epochs: {Epochs}, Episodes: {Episodes}, Horizon: {Horizon}, TopKEps: {TopKEps}")
@@ -353,13 +373,13 @@ def main():
         
         stateId = p.saveState()
 
-        # futureStates = []
-        # for h in range(Horizon):
-        #     if envStep + h > len(traj) - 1:
-        #         futureStates.append(traj[-1])
-        #     else:
-        #         futureStates.append(traj[envStep + h])
-        # futureStates = torch.stack(futureStates)
+        futureStates = []
+        for h in range(Horizon):
+            if envStep + h > len(traj) - 1:
+                futureStates.append(traj[-1])
+            else:
+                futureStates.append(traj[envStep + h])
+        futureStates = torch.stack(futureStates)
         # print("futureStates:\n", futureStates)
 
         epsMem = []
@@ -371,7 +391,8 @@ def main():
                 episode = distr.sample()
                 episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
                 # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates)
-                cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalCoords, distToGoal)
+                # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalCoords, distToGoal)
+                cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates, distToGoal)
                 epsMem.append((episode,cost))
             p.restoreState(stateId)
             epsMem = sorted(epsMem, key = lambda x: x[1])
@@ -444,7 +465,7 @@ def main():
             break
 
     finalEePos = np.array(finalEePos)
-    # traj = np.array(traj)
+    traj = np.array(traj)
 
     pathNum = 0
 
@@ -468,13 +489,13 @@ def main():
     with open(errorFolder + f"finalEePos_{pathNum}.pkl", 'wb') as f:
         pickle.dump(finalEePos, f)
 
-    # with open(errorFolder + f"traj_999.pkl", 'wb') as f:
-    #     pickle.dump(traj, f)
+    with open(errorFolder + f"traj_{pathNum}.pkl", 'wb') as f:
+        pickle.dump(traj, f)
     p.disconnect()
     # while 1:
     #     p.stepSimulation()
     totalDuration = time.time() - initialTime
-    print("totalDuration: ", totalDuration)
+    print("totalDuration: ", time.strftime('%H:%M:%S', time.gmtime(totalDuration)))
 
 
 
