@@ -1,3 +1,4 @@
+from tkinter import ACTIVE
 import pybullet as p
 import pybullet_data
 import os
@@ -8,69 +9,87 @@ import pickle
 import time
 import random
 
-ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
-END_EFFECTOR_INDEX = 7 # The end effector link index.
-ELBOW_INDEX = 3 # The end effector link index.
-DISCRETIZED_STEP = 0.05
-CTL_FREQ = 20
-SIM_STEPS = 3
-GAMMA = 0.9
-
+ACTIVE_JOINTS = [1,2,3,4,5,6,8,9] # All of the movable joints of the UR5
+END_EFFECTOR_INDEX = 7 # The end effector link index of the UR5.
+ELBOW_INDEX = 3 # The elbow link index of the UR5.
+DISCRETIZED_STEP = 0.05 # The step size for discretizing a trajectory.
+# CTL_FREQ = 20 
+# SIM_STEPS = 3
+# GAMMA = 0.9
 
 """
-Calculates the difference between two vectors.
+@desc:      
+@param:     
+@returns:   
+@example:   
 """
+
 def diff(v1, v2):
+    """
+    @desc:      Calculates the difference between two n-vectors.
+    @param:     {Tensor} a n-vector
+    @param:     {Tensor} a n-vector
+    @returns:   {Tensor} the difference between the two n-vectors
+    @example:   
+    """
     return torch.sub(v1, v2)
 
-"""
-Calculates the magnitude of a vector.
-"""
 def magnitude(v):
+    """
+    @desc:      Calculates the magnitude of a vector.
+    @param:     {Tensor} a n-vector
+    @returns:   {Tensor} the magnitude of the n-vector
+    @example:   
+    """
     return torch.sqrt(torch.sum(torch.pow(v, 2)))
 
-"""
-Calculates distance between two vectors.
-"""
 def dist(p1, p2):
+    """
+    @desc:      Calculates distance between two vectors.
+    @param:     {Tensor} a n-vector
+    @param:     {Tensor} a n-vector
+    @returns:   {Tenspr} the distance between the two n-vectors
+    @example:   
+    """
     return magnitude(diff(p1, p2))
 
-MIN_STATES = [
-    -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, -0.9208793640136719, -0.9239162802696228, -0.7005515694618225, 
-    -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, 
-    -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, -0.9208793640136719, -0.9239162802696228, -0.7005515694618225
-    ]
-MAX_STATES = [
-    np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 0.9053947925567627, 0.9046874642372131, 1.1148362159729004, 
-    np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 
-    np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 0.9053947925567627, 0.9046874642372131, 1.1148362159729004]
+# MIN_STATES = [
+#     -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, -0.9208793640136719, -0.9239162802696228, -0.7005515694618225, 
+#     -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, 
+#     -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04, -0.9208793640136719, -0.9239162802696228, -0.7005515694618225
+#     ]
+# MAX_STATES = [
+#     np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 0.9053947925567627, 0.9046874642372131, 1.1148362159729004, 
+#     np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 
+#     np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0, 0.9053947925567627, 0.9046874642372131, 1.1148362159729004]
 
-STATE_RANGE = np.subtract(MAX_STATES, MIN_STATES)
+# STATE_RANGE = np.subtract(MAX_STATES, MIN_STATES)
 
-def normalize(data):
-    diff = np.subtract(data, MIN_STATES)
-    normalState = diff/STATE_RANGE
-    return normalState
+# def normalize(data):
+#     diff = np.subtract(data, MIN_STATES)
+#     normalState = diff/STATE_RANGE
+#     return normalState
 
-def unnormalize(normalizedData):
-    return np.add(normalizedData * STATE_RANGE, MIN_STATES)
+# def unnormalize(normalizedData):
+#     return np.add(normalizedData * STATE_RANGE, MIN_STATES)
 
-"""
-Loads pybullet environment with a horizontal plane and earth like gravity.
-"""
 def loadEnv():
-    p.connect(p.DIRECT) 
+    """
+    @desc:      Loads pybullet environment with a horizontal plane and earth like gravity.
+    """
+    p.connect(p.DIRECT)
     # p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     p.setGravity(0, 0, -9.8)
     # p.setTimeStep(1./50.)
-    p.setTimeStep(1./CTL_FREQ/SIM_STEPS)
+    p.setTimeStep(1./20/3)
 
-"""
-Loads the UR5 robot.
-"""
 def loadUR5():
+    """
+    @desc:      Loads the UR5 robot into the environment
+    @returns:   {number} body unique id of the robot
+    """
     p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
     path = f"{os.getcwd()}/../ur5pybullet"
     print(path)
@@ -89,15 +108,22 @@ def loadUR5():
     return uid
 
 def getConfig(uid, jointIds):
+    """
+    @desc:      gets the position (in radians) of the joint(s)
+    @param:     {number} body unique id
+    @param:     {List} a list of joint ids which you want to get the position of
+    @returns:   {List} a list of joint positions in radians
+    @example:   
+    """
     config = []
     for id in jointIds:
         # print(p.getJointState(uid, id)[0])
         config.append(p.getJointState(uid, id)[0])
-    EEPos = getState(uid)[0].tolist()
-    config.append(EEPos[0])
-    config.append(EEPos[1])
-    config.append(EEPos[2])
-    return config
+    # EEPos = getState(uid)[0].tolist()
+    # config.append(EEPos[0])
+    # config.append(EEPos[1])
+    # config.append(EEPos[2])
+    return torch.Tensor(config)
 
 def getLimitPos(jointIds, quadruped):
     mins = []
@@ -185,14 +211,14 @@ def getJointPos(uid):
 def getReward(action, jointIds, uid, target, distToGoal):
     state = getState(uid)
     # eeCost = dist(state[0], target)
-
+    # prevConfig = getConfig(uid, ACTIVE_JOINTS)
     applyAction(uid, action)
 
     next_state = getState(uid)
     distCost = dist(next_state[0], target)
     elbowCost = dist(next_state[1], state[1])
-    groundColliCost = 0 
-    bigActionCost = magnitude(action)
+    groundColliCost = 0
+    # bigActionCost = dist(action, prevConfig)
 
     jointPositions = getJointPos(uid)
     
@@ -208,8 +234,9 @@ def getReward(action, jointIds, uid, target, distToGoal):
     #     if ls[0][2] < 0.15:
     #         groundColliCost += 1
 
-    weight = torch.Tensor([10, 1, 2, 1])
-    rawCost = torch.Tensor([distCost, elbowCost, groundColliCost, bigActionCost])
+    weight = torch.Tensor([10, 1, 2])
+    # rawCost = torch.Tensor([distCost, elbowCost, groundColliCost, bigActionCost])
+    rawCost = torch.Tensor([distCost, elbowCost, groundColliCost])
     reward = (weight * rawCost).sum().numpy()
     if distCost > distToGoal: 
         reward += 10
@@ -237,7 +264,7 @@ def applyAction(uid, action):
     maxSimSteps = 150
     for s in range(maxSimSteps):
         p.stepSimulation()
-        currConfig = getConfig(uid, ACTIVE_JOINTS)[0:8]
+        currConfig = getConfig(uid, ACTIVE_JOINTS)
         action = torch.Tensor(action)
         currConfig = torch.Tensor(currConfig)
         error = torch.sub(action, currConfig)
@@ -258,7 +285,7 @@ def main():
     np.random.seed(np_seed)
     random.seed(py_seed)
 
-    trainingFolder = "./trainingDataWithEE/"
+    trainingFolder = "./trainingData/"
     errorFolder = "./error/"
     if not os.path.exists(trainingFolder):
         os.makedirs(trainingFolder)
@@ -367,33 +394,47 @@ def main():
         
         pairs = []
         pairs.extend(getConfig(uid, ACTIVE_JOINTS))
+        
+        jointPositions = getJointPos(uid)
+        for pos in jointPositions:
+            pairs.extend(pos)
+
+        pairs.extend(getState(uid)[1])
+
         pairs.extend(bestAction)
         
         applyAction(uid, bestAction)
         distToGoal = dist(torch.Tensor(initCoords), torch.Tensor(goalCoords))
 
-        # Copied from getReward()
-        groundColliCost = 0 
-        jointPositions = getJointPos(uid)
+        # # Copied from getReward()
+        # groundColliCost = 0 
+        # jointPositions = getJointPos(uid)
         
-        jointZs = []
-        for pos in jointPositions:
-            jointZs.append(pos[2])
-            if pos[2] < 0.15:
-                groundColliCost += 1
+        # jointZs = []
+        # for pos in jointPositions:
+        #     jointZs.append(pos[2])
+        #     if pos[2] < 0.15:
+        #         groundColliCost += 1
 
         temp = p.saveState()
         p.restoreState(temp)
 
         pairs.extend(getConfig(uid, ACTIVE_JOINTS))
+        
+        jointPositions = getJointPos(uid)
+        for pos in jointPositions:
+            pairs.extend(pos)
+        
+        pairs.extend(getState(uid)[1])
+
         saveRun.append(pairs)
 
-        eePos, elbowPos = getState(uid)
+        eePos = getState(uid)[0]
         iterationTime = time.time() - startTime
 
         finalEePos.append(eePos.tolist())
-        finalElbowPos.append(elbowPos.tolist())
-        finalGroundCost.append(groundColliCost)
+        # finalElbowPos.append(elbowPos.tolist())
+        # finalGroundCost.append(groundColliCost)
         iterationTimes.append(iterationTime)
 
         distError = dist(eePos, goalCoords)
@@ -405,15 +446,15 @@ def main():
     finalEePos = np.array(finalEePos)
     # traj = np.array(traj)
 
-    pathNum = 1008
+    pathNum = 0
 
-    stateInfo = {
-        'finalEePos': finalEePos,
-        'finalElbowPos': finalElbowPos,
-        'finalGroundCost': finalGroundCost,
-        'iterationTimes': iterationTimes,
-        'timeDuration': totalDuration,
-    }
+    # stateInfo = {
+    #     'finalEePos': finalEePos,
+    #     'finalElbowPos': finalElbowPos,
+    #     'finalGroundCost': finalGroundCost,
+    #     'iterationTimes': iterationTimes,
+    #     'timeDuration': totalDuration,
+    # }
 
     with open(trainingFolder + f"ur5sample_{pathNum}.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
@@ -421,8 +462,8 @@ def main():
     with open(errorFolder + f"debug_{pathNum}.pkl", 'wb') as f:
         pickle.dump(debug, f)
 
-    with open(errorFolder + f"stateInfo_{pathNum}.pkl", 'wb') as f:
-        pickle.dump(stateInfo, f)
+    # with open(errorFolder + f"stateInfo_{pathNum}.pkl", 'wb') as f:
+    #     pickle.dump(stateInfo, f)
 
     with open(errorFolder + f"finalEePos_{pathNum}.pkl", 'wb') as f:
         pickle.dump(finalEePos, f)
@@ -433,6 +474,7 @@ def main():
     # while 1:
     #     p.stepSimulation()
     totalDuration = time.time() - initialTime
+    print("totalDuration: ", totalDuration)
 
 
 
