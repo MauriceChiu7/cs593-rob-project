@@ -119,7 +119,7 @@ def playback(args):
     if args.mode == 'mpc':
         path = args.path_number
         # with open(f"./trainingDataWithEE/ur5sample.pkl", 'rb') as f:
-        with open(f"./trainingDataWithEE/ur5sample_{path}.pkl", 'rb') as f:
+        with open(f"./trainingData/ur5sample_{path}.pkl", 'rb') as f:
             tuples = pickle.load(f)
         
         # with open(f"./error/debug.pkl", 'rb') as f:
@@ -172,7 +172,7 @@ def playback(args):
 
     if args.mode == 'mpc':
         for tuple in tuples:
-            action = tuple[11:19]
+            action = tuple[35:43]
             action = torch.Tensor(action)
             # print(f"action applied:\n{action}")
             applyAction(uid, action)
