@@ -12,28 +12,59 @@ CTL_FREQ = 20
 SIM_STEPS = 3
 
 
-"""
-Calculates the difference between two vectors.
-"""
 def diff(v1, v2):
+    '''
+    Description: Calculates the difference between two vectors.
+
+    Input:
+    :v1 - {torch.Tensor} The first vector.
+    :v2 - {torch.Tensor} The second vector.
+
+    Returns:
+    :diff - {torch.Tensor} The difference between the two vectors.
+    '''
     return torch.sub(v1, v2)
 
 """
 Calculates the magnitude of a vector.
 """
 def magnitude(v):
+    '''
+    Description: Calculates the magnitude of a vector.
+
+    Input:
+    :v - {torch.Tensor} The vector.
+
+    Returns:
+    :magnitude - {float} The magnitude of the vector.
+
+    '''
     return torch.sqrt(torch.sum(torch.pow(v, 2)))
 
-"""
-Calculates distance between two vectors.
-"""
+
 def dist(p1, p2):
+    '''
+    Description: Calculates the distance between two points.
+
+    Input:
+    :p1 - {torch.Tensor} The first point.
+    :p2 - {torch.Tensor} The second point.
+
+    Returns:
+    :dist - {float} The distance between the two points.
+    '''
     return magnitude(diff(p1, p2))
 
-"""
-Loads pybullet environment with a horizontal plane and earth like gravity.
-"""
+
 def loadEnv():
+    '''
+    Description: Loads pybullet environment with a horizontal plane and earth like gravity.
+    
+    Input: None
+
+    Returns: None
+
+    '''
     # p.connect(p.DIRECT) 
     p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -43,10 +74,18 @@ def loadEnv():
     # p.setTimeStep(1./50.)
     p.setTimeStep(1./CTL_FREQ/SIM_STEPS)
 
-"""
-Loads the UR5 robot.
-"""
+
 def loadUR5():
+    '''
+    Description: Loads UR5 robot.
+
+    Input: None
+
+    Returns: 
+    :uid - {int} The unique id of the robot.
+
+    '''
+    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "UR5/ur5.urdf"), [0, 0, 0.1])
     p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=-45, cameraPitch=-45, cameraTargetPosition=(0,0,0.1))
     # p.resetDebugVisualizerCamera(cameraDistance=0.02, cameraYaw=90, cameraPitch=-0.125, cameraTargetPosition=(0,0.25,0.1))
     path = f"{os.getcwd()}/../ur5pybullet"
@@ -64,6 +103,15 @@ def loadUR5():
     return uid
 
 def getJointPos(uid):
+    '''
+    Description: Gets the position of all the joints.
+
+    Input:
+    :uid - {int} The unique id of the robot.
+
+    Returns:
+    :jointPositions - {torch.Tensor} The position of all the joints.
+    '''
     jointStates = p.getLinkStates(uid, ACTIVE_JOINTS)
     jointPos = []
     for j in jointStates:
@@ -73,11 +121,28 @@ def getJointPos(uid):
     return jointPos
 
 def drawHeight(uid):
+    '''
+    Description: Draws the height of the robot.
+
+    Input:
+    :uid - {int} The unique id of the robot.
+
+    Returns: None
+    '''
     jointPositions = getJointPos(uid)
     for pos in jointPositions:
         p.addUserDebugLine([pos[0], pos[1], pos[2]], [pos[0], pos[1], 0.1], [0,1,0], lineWidth=10, lifeTime=0.1)
 
 def applyAction(uid, action):
+    '''
+    Description: Applies the action to the robot.
+
+    Input:
+    :uid - {int} The unique id of the robot.
+    :action - {torch.Tensor} The action to be applied.
+
+    Returns: None
+    '''
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
     maxSimSteps = 150
     for s in range(maxSimSteps):
@@ -99,6 +164,16 @@ def applyAction(uid, action):
             break
 
 def getConfig(uid, jointIds):
+    '''
+    Description: Gets the configuration of the robot in radian.
+
+    Input:
+    :uid - {int} The unique id of the robot.
+    :jointIds - {list} The list of joint ids.
+
+    Returns:
+    :config - {torch.Tensor} The configuration of the robot.
+    '''
     jointPositions = []
     for id in jointIds:
         # print(p.getJointState(uid, id)[0])
@@ -107,6 +182,17 @@ def getConfig(uid, jointIds):
     return jointPositions
 
 def moveTo(uid, position):
+    '''
+    Description: Moves the robot to the given position.
+
+    Input:
+    :uid - {int} The unique id of the robot.
+    :position - {torch.Tensor} The position to move to.
+
+    Returns:
+    :initState - {torch.Tensor} The initial state of the robot.
+    :initCoords - {torch.Tensor} The initial coordinates of the robot.
+    '''
     applyAction(uid, position)
     initState = getConfig(uid, ACTIVE_JOINTS)
     initCoords = torch.Tensor(p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0])
@@ -115,6 +201,14 @@ def moveTo(uid, position):
     return initState, initCoords
 
 def playback(args):
+    '''
+    Description: Plays back the recorded data.
+
+    Input:
+    :args - {list} The arguments to be passed to the function.
+
+    Returns: None
+    '''
 
     if args.mode == 'mpc':
         path = args.path_number

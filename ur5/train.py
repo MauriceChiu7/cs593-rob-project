@@ -11,6 +11,15 @@ from torch import nn
 
 # Neural Network
 class NeuralNetwork(nn.Module):
+    '''
+    Description: The neural network that we train to replace the Physics engine of pybullet. 
+
+    Input:
+    :nn.Module - nn library.
+
+    Returns:
+    :x - {torch.Tensor} prediction of the neural network.
+    '''
     def __init__(self, stateLength, actionLength):
         super(NeuralNetwork, self).__init__()
 
@@ -63,15 +72,42 @@ stateRange = np.subtract(MAX_STATES, MIN_STATES)
 
 
 def normalize(data):
+    '''
+    Description: Normalizes the data.
+
+    Input:
+    :data - {list} The data to be normalized.
+
+    Returns:
+    :normalizedData - {list} The normalized data.
+    '''
     diff = np.subtract(data, MIN_STATES)
     normalState = diff/stateRange
     return normalState
 
 def unnormalize(normalizedData):
+    '''
+    Description: Unnormalizes the data.
+
+    Input:
+    :normalizedData - {list} The normalized data.
+
+    Returns:
+    :data - {list} The unnormalized data.
+    '''
     return np.add(normalizedData * stateRange, MIN_STATES)
 
 # TODO: normalize inputs and unnormalize output
 def train(args):
+    '''
+    Description: Trains the neural network.
+
+    Input:
+    :args - {argparse.Namespace} The arguments for training, including training/testing folder paths.
+    
+    Returns:
+    :None
+    '''
     print(f"Training...from {args.training_folder}")
 
     LAYERS = 2

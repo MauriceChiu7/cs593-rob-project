@@ -14,6 +14,15 @@ import pickle
 colors = ["Orange", "Blue", "Green", "Red", "Black"]
 
 def readPickle(file):
+    '''
+    Description: Reads a pickle file.
+
+    Input:
+    :file - {str} The path to the pickle file.
+
+    Returns:
+    :content - {list} The content of the pickle file.
+    '''
     print("\nreading data as pickle...")
     with open(file, 'rb') as f:
         content = pickle.load(f)
@@ -23,6 +32,13 @@ def readPickle(file):
     return content
 
 def main():
+    '''
+    Description: plots and shows the data from the pickle file.
+
+    Input: None
+
+    Returns: None
+    '''
     legends = []
 
     content = readPickle("./graphs/error_epoch.pkl")

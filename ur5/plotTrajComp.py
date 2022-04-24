@@ -11,6 +11,13 @@ colors = ["Orange", "Blue", "Green", "Black", "Red", "Brown", "Olive", "Cyan", "
 grays = ["Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray", "Gray"]
 
 def main():
+    '''
+    Description: plots and shows the trajectory from the pickle file.
+
+    Input: None
+
+    Returns: None
+    '''
     path = 37
     fig = plt.figure()
     ax = plt.axes(projection='3d')
