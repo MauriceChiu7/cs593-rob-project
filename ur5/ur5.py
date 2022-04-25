@@ -1,4 +1,3 @@
-from tkinter import ACTIVE
 import pybullet as p
 import pybullet_data
 import os
@@ -8,6 +7,7 @@ import math
 import pickle
 import time
 import random
+import sys
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9] # All of the movable joints of the UR5
 END_EFFECTOR_INDEX = 7 # The end effector link index of the UR5.
@@ -445,8 +445,9 @@ def main():
 
     finalEePos = np.array(finalEePos)
     # traj = np.array(traj)
+    avgIterationTime = np.average(iterationTimes)
 
-    pathNum = 0
+    pathNum = sys.argv[1]
 
     # stateInfo = {
     #     'finalEePos': finalEePos,
@@ -474,7 +475,8 @@ def main():
     # while 1:
     #     p.stepSimulation()
     totalDuration = time.time() - initialTime
-    print("totalDuration: ", totalDuration)
+    print("avgIterationTime: ", time.strftime('%H:%M:%S', time.gmtime(avgIterationTime)))
+    print("totalDuration: ", time.strftime('%H:%M:%S', time.gmtime(totalDuration)))
 
 
 
