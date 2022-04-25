@@ -77,25 +77,32 @@ def drawHeight(uid):
     for pos in jointPositions:
         p.addUserDebugLine([pos[0], pos[1], pos[2]], [pos[0], pos[1], 0.1], [0,1,0], lineWidth=10, lifeTime=0.1)
 
+def getJointVelocity(uid, jointIds):
+    jv = []
+    jointStates = p.getJointStates(uid, jointIds)
+    for js in jointStates:
+        jv.append(js[1])
+    return torch.Tensor(jv)
+
 def applyAction(uid, action):
-    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
+    # p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
+    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.TORQUE_CONTROL, forces=action)
     maxSimSteps = 150
     for s in range(maxSimSteps):
         # drawHeight(uid)
         print(s)
         time.sleep(1./25)
         p.stepSimulation()
-        currConfig = getConfig(uid, ACTIVE_JOINTS)[0:8]
-        action = torch.Tensor(action)
-        currConfig = torch.Tensor(currConfig)
-        error = torch.sub(action, currConfig)
-        print("error:\n", error)
-        done = True
-        for e in error:
-            if abs(e) > 0.02:
-                done = False
-        if done:
+        jointVelocities = getJointVelocity(uid, ACTIVE_JOINTS)
+        magJointVel = magnitude(jointVelocities)
+        print("jointVelocities: \n", jointVelocities)
+        # done = True
+        # for jv in jointVelocities:
+        #     if abs(e) > 0.02:
+        #         done = False
+        if magJointVel == 0:
             # print(f"reached position: \n{action}, \nwith target:\n{currConfig}, \nand error: \n{error} \nin step {s}")
+            print(f"reached position with force:\n{action}\nin step {s}")
             break
 
 def getConfig(uid, jointIds):
@@ -107,7 +114,26 @@ def getConfig(uid, jointIds):
     return jointPositions
 
 def moveTo(uid, position):
-    applyAction(uid, position)
+    p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, position)
+    maxSimSteps = 150
+    for s in range(maxSimSteps):
+        # drawHeight(uid)
+        print(s)
+        time.sleep(1./25)
+        p.stepSimulation()
+        currConfig = getConfig(uid, ACTIVE_JOINTS)[0:8]
+        position = torch.Tensor(position)
+        currConfig = torch.Tensor(currConfig)
+        error = torch.sub(position, currConfig)
+        print("error:\n", error)
+        done = True
+        for e in error:
+            if abs(e) > 0.02:
+                done = False
+        if done:
+            # print(f"reached position: \n{position}, \nwith target:\n{currConfig}, \nand error: \n{error} \nin step {s}")
+            break
+    
     initState = getConfig(uid, ACTIVE_JOINTS)
     initCoords = torch.Tensor(p.getLinkState(uid, END_EFFECTOR_INDEX, 1)[0])
     # p.addUserDebugLine([0,0,0.1], initCoords, [1,0,0])

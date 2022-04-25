@@ -236,6 +236,7 @@ def getReward(action, jointIds, uid, target, distToGoal):
     elbowCost = dist(next_state[1], state[1])
     groundColliCost = 0
     # bigActionCost = dist(action, prevConfig)
+    # bigActionCost = magnitude(action)
 
     jointPositions = getJointPos(uid)
     
@@ -251,6 +252,7 @@ def getReward(action, jointIds, uid, target, distToGoal):
     #     if ls[0][2] < 0.15:
     #         groundColliCost += 1
 
+    # weight = torch.Tensor([10, 1, 2, 1])
     weight = torch.Tensor([10, 1, 2])
     # rawCost = torch.Tensor([distCost, elbowCost, groundColliCost, bigActionCost])
     rawCost = torch.Tensor([distCost, elbowCost, groundColliCost])
@@ -278,22 +280,28 @@ def getEpsReward(episode, jointIds, uid, Horizon, futureStates, distToGoal):
         reward += getReward(action, jointIds, uid, futureStates[h], distToGoal)
     return reward
 
+def getJointVelocity(uid, jointIds):
+    jv = []
+    jointStates = p.getJointStates(uid, jointIds)
+    for js in jointStates:
+        jv.append(js[1])
+    return torch.Tensor(jv)
+
 def applyAction(uid, action):
     # p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.TORQUE_CONTROL, forces=action)
     maxSimSteps = 150
     for s in range(maxSimSteps):
         p.stepSimulation()
-        currConfig = getConfig(uid, ACTIVE_JOINTS)
-        action = torch.Tensor(action)
-        currConfig = torch.Tensor(currConfig)
-        error = torch.sub(action, currConfig)
-        done = True
-        for e in error:
-            if abs(e) > 0.02:
-                done = False
-        if done:
+        jointVelocities = getJointVelocity(uid, ACTIVE_JOINTS)
+        magJointVel = magnitude(jointVelocities)
+        # done = True
+        # for jv in jointVelocities:
+        #     if abs(e) > 0.02:
+        #         done = False
+        if magJointVel == 0:
             # print(f"reached position: \n{action}, \nwith target:\n{currConfig}, \nand error: \n{error} \nin step {s}")
+            print(f"reached position with force:\n{action}\nin step {s}")
             break
 
 def main():
@@ -466,8 +474,9 @@ def main():
 
     finalEePos = np.array(finalEePos)
     traj = np.array(traj)
+    avgIterationTime = np.average(iterationTimes)
 
-    pathNum = 1
+    pathNum = 2
 
     # stateInfo = {
     #     'finalEePos': finalEePos,
@@ -495,6 +504,7 @@ def main():
     # while 1:
     #     p.stepSimulation()
     totalDuration = time.time() - initialTime
+    print("avgIterationTime: ", time.strftime('%H:%M:%S', time.gmtime(avgIterationTime)))
     print("totalDuration: ", time.strftime('%H:%M:%S', time.gmtime(totalDuration)))
 
 
