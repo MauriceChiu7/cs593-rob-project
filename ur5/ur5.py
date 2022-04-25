@@ -13,9 +13,11 @@ ACTIVE_JOINTS = [1,2,3,4,5,6,8,9] # All of the movable joints of the UR5
 END_EFFECTOR_INDEX = 7 # The end effector link index of the UR5.
 ELBOW_INDEX = 3 # The elbow link index of the UR5.
 DISCRETIZED_STEP = 0.05 # The step size for discretizing a trajectory.
-TIME_STEP = 1./50.
-FORCE_MULTIPLIER = 1e15
-VARIANCE_MULTIPLIER = 1e15
+TIME_STEP = 1./6.
+FORCE_MULTIPLIER = 1e1
+VARIANCE_MULTIPLIER = 1e3
+GUI = p.GUI
+GUI = p.DIRECT
 # CTL_FREQ = 20 
 # SIM_STEPS = 3
 # GAMMA = 0.9
@@ -80,7 +82,7 @@ def loadEnv():
     """
     @desc:      Loads pybullet environment with a horizontal plane and earth like gravity.
     """
-    p.connect(p.DIRECT)
+    p.connect(GUI)
     # p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
@@ -263,8 +265,8 @@ def getReward(action, jointIds, uid, target, distToGoal):
     reward = (weight * rawCost).sum().numpy()
     if distCost > distToGoal: 
         reward += 10
-    # print("rawCost:\t", rawCost)
-    # print("weighted:\t", (weight * rawCost))
+    print("rawCost:\t", rawCost)
+    print("weighted:\t", (weight * rawCost))
     # print("total reward:\t\t", reward)
     # print("\n")
     return reward
@@ -399,9 +401,10 @@ def main():
             print(f"Epoch {e}")
             distr = torch.distributions.MultivariateNormal(mu, cov)
             for eps in range (Episodes):
+                print(f"iteration: {envStep}, epochs: {e}, episodes: {eps}")
                 p.restoreState(stateId)
                 episode = distr.sample()
-                print("episode:\n", episode)
+                # print("episode:\n", episode)
                 episode = torch.mul(episode, torch.Tensor([FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, 0, 0] * Horizon))
                 print("episode:\n", episode)
                 # episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
@@ -416,9 +419,9 @@ def main():
             print("epsMem: \n", epsMem)
 
             topK = [x[0] for x in epsMem]
-            print("topK:\n", topK)
+            # print("topK:\n", topK)
             topK = torch.stack(topK)
-            print("topK:\n", topK)
+            # print("topK:\n", topK)
             mu = torch.mean(topK, axis = 0)
             std = torch.std(topK, axis = 0)
             var = torch.square(std)
