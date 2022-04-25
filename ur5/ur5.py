@@ -80,8 +80,8 @@ def loadEnv():
     """
     @desc:      Loads pybullet environment with a horizontal plane and earth like gravity.
     """
-    # p.connect(p.DIRECT)
-    p.connect(p.GUI)
+    p.connect(p.DIRECT)
+    # p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     p.setGravity(0, 0, -9.8)
