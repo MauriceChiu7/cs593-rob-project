@@ -467,7 +467,7 @@ def main():
     finalEePos = np.array(finalEePos)
     traj = np.array(traj)
 
-    pathNum = 0
+    pathNum = 1
 
     # stateInfo = {
     #     'finalEePos': finalEePos,
