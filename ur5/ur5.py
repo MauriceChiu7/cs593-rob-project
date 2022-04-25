@@ -80,8 +80,8 @@ def loadEnv():
     """
     @desc:      Loads pybullet environment with a horizontal plane and earth like gravity.
     """
-    # p.connect(p.DIRECT)
-    p.connect(p.GUI)
+    p.connect(p.DIRECT)
+    # p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     p.setGravity(0, 0, -9.8)
@@ -401,7 +401,9 @@ def main():
             for eps in range (Episodes):
                 p.restoreState(stateId)
                 episode = distr.sample()
+                print("episode:\n", episode)
                 episode = torch.mul(episode, torch.Tensor([FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, 0, 0] * Horizon))
+                print("episode:\n", episode)
                 # episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
                 # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates)
                 # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalCoords, distToGoal)
@@ -414,7 +416,7 @@ def main():
             # print("epsMem: \n", epsMem)
 
             topK = [x[0] for x in epsMem]
-            topK = torch.Tensor(topK)
+            # topK = torch.Tensor(topK)
             mu = torch.mean(topK, axis = 0)
             std = torch.std(topK, axis = 0)
             var = torch.square(std)
