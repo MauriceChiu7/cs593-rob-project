@@ -80,8 +80,8 @@ def loadEnv():
     """
     @desc:      Loads pybullet environment with a horizontal plane and earth like gravity.
     """
-    p.connect(p.DIRECT)
-    # p.connect(p.GUI)
+    # p.connect(p.DIRECT)
+    p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     p.setGravity(0, 0, -9.8)
@@ -350,9 +350,9 @@ def main():
     # MAX_ITERATIONS = 40
     Iterations = len(traj) # N - envSteps
     # Iterations = MAX_ITERATIONS # N - envSteps
-    Epochs = 10 # T - trainSteps was 40
-    Episodes = 200 # G - plans was 200, 1200, 800
-    Horizon = 5 # H - horizonLength was 10, 5, 1
+    Epochs = 10 # T - trainSteps was 40, 10
+    Episodes = 100 # G - plans was 200, 1200, 800, 200
+    Horizon = 5 # H - horizonLength was 10, 5, 1, 5
     TopKEps = int(0.2*Episodes) # was int(0.3*Episodes)
 
     print(f"Iterations: {Iterations}, Epochs: {Epochs}, Episodes: {Episodes}, Horizon: {Horizon}, TopKEps: {TopKEps}")
@@ -413,10 +413,12 @@ def main():
             epsMem = sorted(epsMem, key = lambda x: x[1])
             epsMem = epsMem[0:TopKEps]
 
-            # print("epsMem: \n", epsMem)
+            print("epsMem: \n", epsMem)
 
             topK = [x[0] for x in epsMem]
-            # topK = torch.Tensor(topK)
+            print("topK:\n", topK)
+            topK = torch.stack(topK)
+            print("topK:\n", topK)
             mu = torch.mean(topK, axis = 0)
             std = torch.std(topK, axis = 0)
             var = torch.square(std)
