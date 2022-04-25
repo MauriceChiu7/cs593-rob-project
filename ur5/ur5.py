@@ -13,6 +13,9 @@ ACTIVE_JOINTS = [1,2,3,4,5,6,8,9] # All of the movable joints of the UR5
 END_EFFECTOR_INDEX = 7 # The end effector link index of the UR5.
 ELBOW_INDEX = 3 # The elbow link index of the UR5.
 DISCRETIZED_STEP = 0.05 # The step size for discretizing a trajectory.
+TIME_STEP = 1./50.
+FORCE_MULTIPLIER = 1e15
+VARIANCE_MULTIPLIER = 1e15
 # CTL_FREQ = 20 
 # SIM_STEPS = 3
 # GAMMA = 0.9
@@ -77,13 +80,13 @@ def loadEnv():
     """
     @desc:      Loads pybullet environment with a horizontal plane and earth like gravity.
     """
-    p.connect(p.DIRECT)
-    # p.connect(p.GUI)
+    # p.connect(p.DIRECT)
+    p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF(os.path.join(pybullet_data.getDataPath(), "plane.urdf"), [0, 0, 0.1])
     p.setGravity(0, 0, -9.8)
-    # p.setTimeStep(1./50.)
-    p.setTimeStep(1./20/3)
+    p.setTimeStep(TIME_STEP)
+    # p.setTimeStep(1./20/3)
 
 def loadUR5():
     """
@@ -93,6 +96,7 @@ def loadUR5():
     p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
     path = f"{os.getcwd()}/../ur5pybullet"
     print(path)
+
     # exit()
     os.chdir(path) # Needed to change directory to load the UR5.
     uid = p.loadURDF(os.path.join(os.getcwd(), "./urdf/real_arm.urdf"), [0.0,0.0,0.0], p.getQuaternionFromEuler([0,0,0]), flags = p.URDF_USE_INERTIA_FROM_FILE | p.URDF_USE_SELF_COLLISION)
@@ -290,7 +294,7 @@ def getJointVelocity(uid, jointIds):
 def applyAction(uid, action):
     # p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.TORQUE_CONTROL, forces=action)
-    maxSimSteps = 150
+    maxSimSteps = 500
     for s in range(maxSimSteps):
         p.stepSimulation()
         jointVelocities = getJointVelocity(uid, ACTIVE_JOINTS)
@@ -347,7 +351,7 @@ def main():
     Iterations = len(traj) # N - envSteps
     # Iterations = MAX_ITERATIONS # N - envSteps
     Epochs = 10 # T - trainSteps was 40
-    Episodes = 800 # G - plans was 200, 1200
+    Episodes = 200 # G - plans was 200, 1200, 800
     Horizon = 5 # H - horizonLength was 10, 5, 1
     TopKEps = int(0.2*Episodes) # was int(0.3*Episodes)
 
@@ -375,7 +379,7 @@ def main():
         print("prevDistToGoal:\t", distError)
 
         mu = torch.Tensor([0]*(len(ACTIVE_JOINTS) * Horizon))
-        cov = torch.eye(len(mu)) * ((np.pi/2) ** 2)
+        cov = torch.eye(len(mu)) * ((VARIANCE_MULTIPLIER * np.pi/2) ** 2)
         startState = p.saveState()
         p.restoreState(startState)
         
@@ -397,7 +401,8 @@ def main():
             for eps in range (Episodes):
                 p.restoreState(stateId)
                 episode = distr.sample()
-                episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
+                episode = torch.mul(episode, torch.Tensor([FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, FORCE_MULTIPLIER, 0, 0] * Horizon))
+                # episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
                 # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates)
                 # cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, goalCoords, distToGoal)
                 cost = getEpsReward(episode, ACTIVE_JOINTS, uid, Horizon, futureStates, distToGoal)
