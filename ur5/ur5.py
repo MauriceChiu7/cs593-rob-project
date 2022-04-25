@@ -242,7 +242,7 @@ def getReward(action, jointIds, uid, target, distToGoal):
     jointZs = []
     for pos in jointPositions:
         jointZs.append(pos[2])
-        if pos[2] < 0.15:
+        if pos[2] < 0.2:
             groundColliCost += 1
     # print("jointZs:\t", jointZs)
 
@@ -338,10 +338,10 @@ def main():
     # MAX_ITERATIONS = 40
     Iterations = len(traj) # N - envSteps
     # Iterations = MAX_ITERATIONS # N - envSteps
-    Epochs = 20 # T - trainSteps was 40
-    Episodes = 400 # G - plans was 200, 1200
+    Epochs = 10 # T - trainSteps was 40
+    Episodes = 800 # G - plans was 200, 1200
     Horizon = 5 # H - horizonLength was 10, 5, 1
-    TopKEps = int(0.15*Episodes) # was int(0.3*Episodes)
+    TopKEps = int(0.2*Episodes) # was int(0.3*Episodes)
 
     print(f"Iterations: {Iterations}, Epochs: {Epochs}, Episodes: {Episodes}, Horizon: {Horizon}, TopKEps: {TopKEps}")
 
