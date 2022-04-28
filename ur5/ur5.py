@@ -389,7 +389,7 @@ def main():
     # print("traj:\n", traj)
     
     # Constants:
-    MAX_ITERATIONS = 1 # Program will quit after failing to reach goal for this number of iterations
+    MAX_ITERATIONS = 3 # Program will quit after failing to reach goal for this number of iterations
     # Iterations = len(traj) # N - envSteps
     Iterations = MAX_ITERATIONS # N - envSteps
     Epochs = 20 # T - trainSteps
