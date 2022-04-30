@@ -33,6 +33,14 @@ def magnitude(v):
 Calculates distance between two vectors.
 """
 def dist(p1, p2):
+    '''
+    Description:
+    Calculates the distance between two points.
+        
+    Inputs:
+    p1: The first point.
+    p2: The second point.
+    '''
     return magnitude(diff(p1, p2))
 
 MIN_STATES = [
@@ -48,17 +56,47 @@ MAX_STATES = [
 STATE_RANGE = np.subtract(MAX_STATES, MIN_STATES)
 
 def normalize(data):
+    '''
+    Description:
+    Normalizes the data.
+
+    Inputs:
+    :data -{list} - The data to be normalized.
+
+    Outputs:
+    :normalizedData -{list} - The normalized data.
+    '''
     diff = np.subtract(data, MIN_STATES)
     normalState = diff/STATE_RANGE
     return normalState
 
 def unnormalize(normalizedData):
+    '''
+    Description:
+    Unnormalizes the data.
+
+    Inputs:
+    :normalizedData -{list} - The normalized data.
+
+    Outputs:
+    :data -{list} - The unnormalized data.
+    '''
     return np.add(normalizedData * STATE_RANGE, MIN_STATES)
 
 """
 Loads pybullet environment with a horizontal plane and earth like gravity.
 """
 def loadEnv():
+    '''
+    Description:
+    Loads the pybullet environment.
+    
+    Inputs:
+    None
+
+    Outputs:
+    None
+    '''
     p.connect(p.DIRECT) 
     # p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -71,6 +109,16 @@ def loadEnv():
 Loads the UR5 robot.
 """
 def loadUR5():
+    '''
+    Description:
+    Loads the UR5 robot.
+    
+    Inputs:
+    None
+    
+    Outputs:
+    :quadruped -{int} - The unique id of the robot.
+    '''
     p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
     path = f"{os.getcwd()}/../ur5pybullet"
     print(path)
@@ -89,6 +137,17 @@ def loadUR5():
     return uid
 
 def getConfig(uid, jointIds):
+    '''
+    Description:
+    Gets the current configuration of the robot.
+
+    Inputs:
+    :uid -{int} - The unique id of the robot.
+    :jointIds -{list} - The list of joint ids.
+
+    Outputs:
+    :config -{list} - The current configuration of the robot.
+    '''
     config = []
     for id in jointIds:
         # print(p.getJointState(uid, id)[0])
@@ -100,6 +159,17 @@ def getConfig(uid, jointIds):
     return config
 
 def getLimitPos(jointIds, quadruped):
+    '''
+    Description:
+    Gets the limit position of the robot.
+
+    Inputs:
+    :jointIds -{list} - The list of joint ids.
+    :quadruped -{int} - The unique id of the robot.
+
+    Outputs:
+    :limitPos -{list} - The limit position of the robot joints.
+    '''
     mins = []
     maxes = []
     for id in jointIds:
@@ -112,6 +182,17 @@ def getLimitPos(jointIds, quadruped):
 Gets the upper and lower positional limits of each joint.
 """
 def getJointsRange(uid, jointIds):
+    '''
+    Description:
+    Gets the upper and lower positional limits of each joint.
+
+    Inputs:
+    :uid -{int} - The unique id of the robot.
+    :jointIds -{list} - The list of joint ids.
+
+    Outputs:
+    :jointsRange -{list} - The upper and lower positional limits of each joint.
+    '''
     jointsRange = []
     for a in jointIds:
         jointInfo = p.getJointInfo(uid, a)
@@ -119,6 +200,16 @@ def getJointsRange(uid, jointIds):
     return jointsRange
 
 def randomInit(uid):
+    '''
+    Description:
+    Randomly initializes the robot.
+
+    Inputs:
+    :uid -{int} - The unique id of the robot.
+
+    Outputs:
+    :config -{list} - The random configuration of the robot.
+    '''
     # Start ur5 with random positions
     jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
     random_positions = []
@@ -134,6 +225,16 @@ def randomInit(uid):
     return initState, initCoords
 
 def randomGoal():
+    '''
+    Description:
+    Randomly generates a goal state.
+
+    Inputs:
+    None
+
+    Outputs:
+    :goal -{list} - The random goal state.
+    '''
     # Generate random goal state for UR5
     x = np.random.uniform(-0.7, 0.7)
     y = np.random.uniform(-0.7, 0.7)
@@ -143,6 +244,17 @@ def randomGoal():
     return goalCoords
 
 def makeTrajectory(initCoords, goalCoords):
+    '''
+    Description:
+    Generates a trajectory between the initial and goal states.
+
+    Inputs:
+    :initCoords -{torch.Tensor} - The initial coordinates of the robot.
+    :goalCoords -{torch.Tensor} - The goal coordinates of the robot.
+
+    Outputs:
+    :trajectory -{torch.Tensor} - The trajectory between the initial and goal states.
+    '''
     distTotal = dist(goalCoords, initCoords)
     diffBtwin = diff(goalCoords, initCoords)
     incrementTotal = torch.div(distTotal, DISCRETIZED_STEP)
@@ -168,12 +280,32 @@ def makeTrajectory(initCoords, goalCoords):
     return torch.stack(traj)
 
 def getState(uid):
+    '''
+    Description:
+    Gets the current state of the robot.
+
+    Inputs:
+    :uid -{int} - The unique id of the robot.
+
+    Outputs:
+    :state -{list} - The current state of the robot.
+    '''
     eePos = p.getLinkState(uid, END_EFFECTOR_INDEX)[0]
     elbowPos = p.getLinkState(uid, ELBOW_INDEX)[0]
     state = torch.Tensor([eePos, elbowPos])
     return state
 
 def getJointPos(uid):
+    '''
+    Description:
+    Gets the current joint positions of the robot.
+
+    Inputs:
+    :uid -{int} - The unique id of the robot.
+
+    Outputs:
+    :jointPos -{list} - The current joint positions of the robot.
+    '''
     jointStates = p.getLinkStates(uid, ACTIVE_JOINTS)
     jointPos = []
     for j in jointStates:
@@ -183,6 +315,20 @@ def getJointPos(uid):
     return jointPos
 
 def getReward(action, jointIds, uid, target, distToGoal):
+    '''
+    Description:
+    Gets the reward for the current state of the robot.
+
+    Inputs:
+    :action -{torch.Tensor} - The action taken by the robot.
+    :jointIds -{list} - The list of joint ids.
+    :uid -{int} - The unique id of the robot.
+    :target -{torch.Tensor} - The goal state of the robot.
+    :distToGoal -{float} - The distance to the goal state.
+
+    Outputs:
+    :reward -{float} - The reward for the current state of the robot.
+    '''
     state = getState(uid)
     # eeCost = dist(state[0], target)
 
@@ -221,6 +367,20 @@ def getReward(action, jointIds, uid, target, distToGoal):
 
 # def getEpsReward(episode, jointIds, uid, Horizon, futureStates):
 def getEpsReward(episode, jointIds, uid, Horizon, goalCoords, distToGoal):
+    '''
+    Description:
+    Gets the reward for the episode.
+
+    Inputs:
+    :episode -{list} - The episode.
+    :jointIds -{list} - The list of joint ids.
+    :uid -{int} - The unique id of the robot.
+    :Horizon -{int} - The horizon of the episode.
+    :futureStates -{list} - The future states of the episode.
+
+    Outputs:
+    :reward -{float} - The reward for the episode.
+    '''
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):
@@ -233,6 +393,17 @@ def getEpsReward(episode, jointIds, uid, Horizon, goalCoords, distToGoal):
     return reward
 
 def applyAction(uid, action):
+    '''
+    Description:
+    Applies the action to the robot.
+
+    Inputs:
+    :uid -{int} - The unique id of the robot.
+    :action -{torch.Tensor} - The action taken by the robot.
+
+    Outputs:
+    :None
+    '''
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
     maxSimSteps = 150
     for s in range(maxSimSteps):

@@ -20,24 +20,64 @@ GAMMA = 0.9
 Calculates the difference between two vectors.
 """
 def diff(v1, v2):
+    '''
+    Description:
+    Calculates the difference between two vectors.
+
+    Input:
+    :v1 -{torch.Tensor} - The first vector.
+    :v2 -{torch.Tensor} - The second vector.
+
+    Returns:
+    :diff -{torch.Tensor} - The difference between the two vectors.
+    '''
     return torch.sub(v1, v2)
 
 """
 Calculates the magnitude of a vector.
 """
 def magnitude(v):
+    '''
+    Description:
+    Calculates the magnitude of a vector.
+
+    Input:
+    :v -{torch.Tensor} - The vector.
+
+    Returns:
+    :magnitude -{float} - The magnitude of the vector.
+    '''
     return torch.sqrt(torch.sum(torch.pow(v, 2)))
 
 """
 Calculates distance between two vectors.
 """
 def dist(p1, p2):
+    '''
+    Description:
+    Calculates the distance between two points.
+
+    Input:
+    :p1 -{torch.Tensor} - The first point.
+    :p2 -{torch.Tensor} - The second point.
+
+    Returns:
+    :dist -{float} - The distance between the two points.
+    '''
     return magnitude(diff(p1, p2))
 
-"""
-Loads pybullet environment with a horizontal plane and earth like gravity.
-"""
+
 def loadEnv():
+    '''
+    Description:
+    Loads the pybullet environment with a horizontal plane and earth like gravity..
+    
+    Input:
+    None.
+
+    Returns:
+    None.
+    '''
     p.connect(p.DIRECT) 
     # p.connect(p.GUI)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -50,6 +90,16 @@ def loadEnv():
 Loads the UR5 robot.
 """
 def loadUR5():
+    '''
+    Description:
+    Loads the UR5 robot.
+
+    Input:
+    None.
+
+    Returns:
+    :uid -{int} - The unique id of the robot.
+    '''
     p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=50, cameraPitch=-35, cameraTargetPosition=(0,0,0))
     path = f"{os.getcwd()}/../ur5pybullet"
     print(path)
@@ -68,6 +118,17 @@ def loadUR5():
     return uid
 
 def getConfig(uid, jointIds):
+    '''
+    Description:
+    Gets the configuration of the robot.
+
+    Input:
+    :uid -{int} - The unique id of the robot.
+    :jointIds -{list} - The list of joint ids.
+
+    Returns:
+    :config -{torch.Tensor} - The configuration of the robot.
+    '''
     config = []
     for id in jointIds:
         # print(p.getJointState(uid, id)[0])
@@ -79,6 +140,17 @@ def getConfig(uid, jointIds):
     return config
 
 def getLimitPos(jointIds, quadruped):
+    '''
+    Description:
+    Gets the position limit of the robot joints.
+
+    Input:
+    :jointIds -{list} - The list of joint ids.
+    :quadruped -{bool} - Whether the robot is a quadruped or not.
+
+    Returns:
+    :limitPos -{torch.Tensor} - The limit position of the robot.
+    '''
     mins = []
     maxes = []
     for id in jointIds:
@@ -90,7 +162,18 @@ def getLimitPos(jointIds, quadruped):
 """
 Gets the upper and lower positional limits of each joint.
 """
-def getJointsRange(uid, jointIds):
+def getJointsRange(uid, jointIds): 
+    '''
+    Description:
+    Gets the upper and lower positional limits of each joint.
+
+    Input:
+    :uid -{int} - The unique id of the robot.
+    :jointIds -{list} - The list of joint ids.
+
+    Returns:
+    :jointsRange -{torch.Tensor} - The upper and lower positional limits of each joint.
+    '''
     jointsRange = []
     for a in jointIds:
         jointInfo = p.getJointInfo(uid, a)
@@ -98,6 +181,16 @@ def getJointsRange(uid, jointIds):
     return jointsRange
 
 def randomInit(uid):
+    '''
+    Description:
+    Randomly initializes the robot.
+
+    Input:
+    :uid -{int} - The unique id of the robot.
+
+    Returns:
+    :config -{torch.Tensor} - The initial configuration of the robot.
+    '''
     # Start ur5 with random positions
     jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
     random_positions = []
@@ -115,6 +208,16 @@ def randomInit(uid):
     return initState, initCoords
 
 def randomGoal():
+    '''
+    Description:
+    Randomly initializes the goal.
+
+    Input:
+    None.
+
+    Returns:
+    :goal -{torch.Tensor} - The randomized goal of the robot.
+    '''
     # Generate random goal state for UR5
     x = np.random.uniform(-0.7, 0.7)
     y = np.random.uniform(-0.7, 0.7)
@@ -124,6 +227,17 @@ def randomGoal():
     return goalCoords
 
 def makeTrajectory(initCoords, goalCoords):
+    '''
+    Description:
+    Makes the trajectory for the robot.
+
+    Input:
+    :initCoords -{torch.Tensor} - The initial coordinates of the robot.
+    :goalCoords -{torch.Tensor} - The goal coordinates of the robot.
+
+    Returns:
+    :trajectory -{torch.Tensor} - The trajectory of the robot.
+    '''
     distTotal = dist(goalCoords, initCoords)
     diffBtwin = diff(goalCoords, initCoords)
     incrementTotal = torch.div(distTotal, DISCRETIZED_STEP)
@@ -149,12 +263,35 @@ def makeTrajectory(initCoords, goalCoords):
     return torch.stack(traj)
 
 def getState(uid):
+    '''
+    Description:
+    Gets the state of the robot.
+
+    Input:
+    :uid -{int} - The unique id of the robot.
+    
+    Returns:
+    :state -{torch.Tensor} - The state of the robot.
+    '''
     eePos = p.getLinkState(uid, END_EFFECTOR_INDEX)[0]
     elbowPos = p.getLinkState(uid, ELBOW_INDEX)[0]
     state = torch.Tensor([eePos, elbowPos])
     return state
 
 def getReward(action, jointIds, uid, target):
+    '''
+    Description:
+    Gets the reward of the robot.
+
+    Input:
+    :action -{torch.Tensor} - The action of the robot.
+    :jointIds -{list} - The list of joint ids.
+    :uid -{int} - The unique id of the robot.
+    :target -{torch.Tensor} - The target of the robot.
+
+    Returns:
+    :reward -{float} - The reward of the robot.
+    '''
     state = getState(uid)
 
     applyAction(uid, action)
@@ -172,6 +309,20 @@ def getReward(action, jointIds, uid, target):
     return reward
 
 def getEpsReward(episode, jointIds, uid, Horizon, futureStates):
+    '''
+    Description:
+    Gets the episode reward of the robot.
+
+    Input:
+    :episode -{int} - The current episode of the robot.
+    :jointIds -{list} - The list of joint ids.  
+    :uid -{int} - The unique id of the robot.
+    :Horizon -{int} - The horizon of the robot.
+    futureStates -{list} - The future states of the robot.
+
+    Returns:
+    :reward -{float} - The episode reward of the robot.
+    '''
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):
@@ -182,11 +333,26 @@ def getEpsReward(episode, jointIds, uid, Horizon, futureStates):
     return reward
 
 def applyAction(uid, action):
+    '''
+    Description:
+    Applies the action to the robot.
+
+    Input:
+    :uid -{int} - The unique id of the robot.
+    :action -{torch.Tensor} - The action of the robot.
+
+    Returns:
+    None.
+    '''
     p.setJointMotorControlArray(uid, ACTIVE_JOINTS, p.POSITION_CONTROL, action)
     for _ in range(SIM_STEPS):
         p.stepSimulation()
 
 def main(path_index):
+    '''
+    Description:
+    Generates paths for the robot.
+    '''
     torch_seed = np.random.randint(low=0, high=1000)
     np_seed = np.random.randint(low=0, high=1000)
     py_seed = np.random.randint(low=0, high=1000)

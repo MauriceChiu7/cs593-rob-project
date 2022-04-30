@@ -16,6 +16,16 @@ SIM_STEPS = 3
 GAMMA = 0.9
 
 def loadNN():
+    '''
+    Description:
+    Load the neural network from the file.
+
+    Input:
+    None
+
+    Output:
+    :nn - {torch.nn.Module} - The neural network.
+    '''
     stateLength = 11
     actionLength = 8
 
@@ -46,6 +56,17 @@ def loadNN():
 Calculates the difference between two vectors.
 """
 def diff(v1, v2):
+    '''
+    Description:
+    Calculates the difference between two vectors.
+    
+    Input:
+    :v1 - {torch.Tensor} - The first vector.
+    :v2 - {torch.Tensor} - The second vector.
+    
+    Output:
+    :diff - {torch.Tensor} - The difference between the two vectors.
+    '''
     v1 = torch.Tensor(v1)
     v2 = torch.Tensor(v2)
     return torch.sub(v1, v2)
@@ -54,15 +75,47 @@ def diff(v1, v2):
 Calculates the magnitude of a vector.
 """
 def magnitude(v):
+    '''
+    Description:
+    Calculates the magnitude of a vector.
+    
+    Input:
+    :v - {torch.Tensor} - The vector.
+    
+    Output:
+    :magnitude - {float} - The magnitude of the vector.
+    '''
     return torch.sqrt(torch.sum(torch.pow(v, 2)))
 
 """
 Calculates distance between two vectors.
 """
 def dist(p1, p2):
+    '''
+    Description:
+    Calculates the distance between two points.
+
+    Input:
+    :p1 - {torch.Tensor} - The first point.
+    :p2 - {torch.Tensor} - The second point.
+
+    Output:
+    :dist - {float} - The distance between the two points.
+    '''
     return magnitude(diff(p1, p2))
 
 def getConfig(uid, jointIds):
+    '''
+    Description:
+    Get the current configuration of the robot.
+    
+    Input:
+    :uid - {int} - The unique id of the robot.
+    :jointIds - {list} - The list of joint ids.
+    
+    Output:
+    :config - {torch.Tensor} - The current configuration of the robot.
+    '''
     jointPositions = []
     for id in jointIds:
         # print(p.getJointState(uid, id)[0])
@@ -71,6 +124,17 @@ def getConfig(uid, jointIds):
     return jointPositions
 
 def getLimitPos(jointIds, quadruped):
+    '''
+    Description:
+    Get the limit positions of the robot.
+    
+    Input:
+    :jointIds - {list} - The list of joint ids.
+    :quadruped - {bool} - Whether the robot is a quadruped or not.
+    
+    Output:
+    :limitPos - {torch.Tensor} - The limit positions of the robot.
+    '''
     mins = []
     maxes = []
     for id in jointIds:
@@ -83,6 +147,17 @@ def getLimitPos(jointIds, quadruped):
 Gets the upper and lower positional limits of each joint.
 """
 def getJointsRange(uid, jointIds):
+    '''
+    Description:
+    Get the upper and lower positional limits of each joint.
+
+    Input:
+    :uid - {int} - The unique id of the robot.
+    :jointIds - {list} - The list of joint ids.
+
+    Output:
+    :jointsRange - {torch.Tensor} - The upper and lower positional limits of each joint.
+    '''
     jointsRange = []
     for a in jointIds:
         jointInfo = p.getJointInfo(uid, a)
@@ -90,6 +165,16 @@ def getJointsRange(uid, jointIds):
     return jointsRange
 
 def randomInit(uid):
+    '''
+    Description:
+    Generate random initial state for UR5.
+    
+    Input:
+    :uid - {int} - The unique id of the robot.
+    
+    Output:
+    :initState - {torch.Tensor} - The initial state of the robot.
+    '''
     # Start ur5 with random positions
     jointsRange = getJointsRange(uid, ACTIVE_JOINTS)
     random_positions = []
@@ -107,6 +192,16 @@ def randomInit(uid):
     return initState, initCoords
 
 def randomGoal():
+    '''
+    Description:
+    Generate random goal state for UR5.
+
+    Input:
+    None
+
+    Output:
+    :goalState - {torch.Tensor} - The goal state of the robot.
+    '''
     # Generate random goal state for UR5
     x = np.random.uniform(-0.7, 0.7)
     y = np.random.uniform(-0.7, 0.7)
@@ -116,6 +211,17 @@ def randomGoal():
     return goalCoords
 
 def makeTrajectory(initCoords, goalCoords):
+    '''
+    Description:
+    Generate a trajectory for UR5.
+
+    Input:
+    :initCoords - {torch.Tensor} - The initial coordinates of the robot.
+    :goalCoords - {torch.Tensor} - The goal coordinates of the robot.
+
+    Output:
+    :trajectory - {torch.Tensor} - The trajectory of the robot.
+    '''
     distTotal = dist(goalCoords, initCoords)
     diffBtwin = diff(goalCoords, initCoords)
     incrementTotal = torch.div(distTotal, DISCRETIZED_STEP)
@@ -142,7 +248,18 @@ def makeTrajectory(initCoords, goalCoords):
 
 
 def getStateFromNN(neuralNet, action, initialState):
-    # Predict the next state with state1 + action
+    '''
+    Description:
+    Predict the next state with state1 + action
+
+    Input:
+    :neuralNet - {torch.nn.Module} - The neural network.
+    :action - {torch.Tensor} - The action to be taken.
+    :initialState - {torch.Tensor} - The initial state of the robot.
+    
+    Output:
+    :nextState - {torch.Tensor} - The next state of the robot.
+    '''
     state_action = []
     state_action.extend(initialState)
     state_action.extend(action)
@@ -150,6 +267,20 @@ def getStateFromNN(neuralNet, action, initialState):
     return nnPredState
 
 def getReward(action, jointIds, target, neuralNet, initState):
+    '''
+    Description:
+    Get the reward for the action.
+
+    Input:
+    :action - {torch.Tensor} - The action to be taken.
+    :jointIds - {list} - The list of joint ids.
+    :target - {torch.Tensor} - The target position of the robot.
+    :neuralNet - {torch.nn.Module} - The neural network.
+    :initState - {torch.Tensor} - The initial state of the robot.
+
+    Output:
+    :reward - {float} - The reward for the action.
+    '''
     nnPredState = getStateFromNN(neuralNet, action, initState)
 
     eeCost = dist(nnPredState[0], target)
@@ -164,6 +295,21 @@ def getReward(action, jointIds, target, neuralNet, initState):
     return reward
 
 def getEpsReward(episode, jointIds, Horizon, futureStates, neuralNet, initState):
+    '''
+    Description:
+    Get the episode reward.
+
+    Input:
+    :episode - {list} - The list of actions.
+    :jointIds - {list} - The list of joint ids.
+    :Horizon - {int} - The horizon of the episode.
+    :futureStates - {list} - The list of future states.
+    :neuralNet - {torch.nn.Module} - The neural network.
+    :initState - {torch.Tensor} - The initial state of the robot.
+
+    Output:
+    :reward - {float} - The episode reward.
+    '''
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):
