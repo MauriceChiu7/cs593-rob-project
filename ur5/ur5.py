@@ -266,8 +266,8 @@ def getReward(action, jointIds, uid, target, distToGoal):
     """
     state = getState(uid)
     applyAction(uid, action)
-
     next_state = getState(uid)
+
     distCost = dist(next_state[0], target)
     elbowCost = dist(next_state[1], state[1])
     groundColliCost = 0
@@ -453,6 +453,7 @@ def main():
         # The loop for improving the distribution
         for e in range(Epochs):
             print(f"Epoch {e}")
+
             # Initialize the distribution which we sample our actions from
             distr = torch.distributions.MultivariateNormal(mu, cov)
             

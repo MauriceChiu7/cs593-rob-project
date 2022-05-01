@@ -6,6 +6,7 @@ import math
 import pickle
 import random
 from datetime import datetime
+import time
 
 ACTIVE_JOINTS = [1,2,3,4,5,6,8,9]
 END_EFFECTOR_INDEX = 7 # The end effector link index.
@@ -16,7 +17,7 @@ SIM_STEPS = 3
 GAMMA = 0.9
 
 def loadNN():
-    stateLength = 11
+    stateLength = 35
     actionLength = 8
 
     # Load the neural network
@@ -149,35 +150,115 @@ def getStateFromNN(neuralNet, action, initialState):
     nnPredState = neuralNet.forward(torch.Tensor(state_action))
     return nnPredState
 
-def getReward(action, jointIds, target, neuralNet, initState):
-    nnPredState = getStateFromNN(neuralNet, action, initState)
+# def getReward(action, jointIds, target, neuralNet, initState):
+#     nnPredState = getStateFromNN(neuralNet, action, initState)
 
-    eeCost = dist(nnPredState[0], target)
-    # elbowCost = dist(nnPredState[3], torch.Tensor(initState)[3])
-    elbowCost = 0
+#     eeCost = dist(nnPredState[0], target)
+#     # elbowCost = dist(nnPredState[3], torch.Tensor(initState)[3])
+#     elbowCost = 0
 
-    weight = torch.Tensor([10, 1])
-    rawCost = torch.Tensor([eeCost, elbowCost])
-    # print("rawCost:\t", rawCost)
+#     weight = torch.Tensor([10, 1])
+#     rawCost = torch.Tensor([eeCost, elbowCost])
+#     # print("rawCost:\t", rawCost)
+#     reward = (weight * rawCost).sum().numpy()
+#     # print("reward:\t\t", reward)
+#     return reward
+
+def getReward(action, jointIds, target, distToGoal, state, next_state):
+    """
+    Description: calculates the cost/reward of an action
+
+    Input:
+    :action - {Tensor} a tensor sequence containg the position of all active joints
+    :jointIds - {List} a list of joint ids
+    :uid - {Int} body unique id of the robot
+    :target - {Tensor} the next way point for the end-effector
+    :distToGoal - {Float} the distance from the current end-effector coordinates to the goal coordinates
+
+    Returns:
+    :reward - {Tensor} the calculated cost/reward of the given action
+    """
+    
+    # state = getState(uid)
+    # applyAction(uid, action)
+
+    # next_state = getState(uid)
+
+    distCost = dist(next_state[48], target)
+    elbowCost = dist(next_state[45], state[2])
+    groundColliCost = 0
+
+    positions = next_state[51:75]
+
+    jointPositions = []
+    for i in range(0, len(positions), 3):
+        joint = []
+        for j in range(3):
+            joint.append(positions[i+j])
+        jointPositions.append(joint)
+
+    jointZs = []
+    for pos in jointPositions:
+        jointZs.append(pos[2])
+        if pos[2] < 0.15:
+            groundColliCost += 1
+
+    weight = torch.Tensor([10, 1, 2])
+    rawCost = torch.Tensor([distCost, elbowCost, groundColliCost])
     reward = (weight * rawCost).sum().numpy()
-    # print("reward:\t\t", reward)
+    if distCost > distToGoal: 
+        reward += 10
+
     return reward
 
-def getEpsReward(episode, jointIds, Horizon, futureStates, neuralNet, initState):
+# def getEpsReward(episode, jointIds, Horizon, futureStates, neuralNet, initState):
+#     numJoints = len(jointIds)
+#     reward = 0
+#     for h in range(Horizon):
+#         start = h * numJoints
+#         end = start + numJoints
+#         action = episode[start:end]
+#         reward += getReward(action, jointIds, futureStates[h], neuralNet, initState)
+#     return reward
+
+# def getEpsReward(episode, jointIds, Horizon, futureStates, neuralNet, initState):
+def getEpsReward(episode, jointIds, Horizon, goalCoords, distToGoal, neuralNet, initState):
+    """
+    Description: calculates the cost/reward of an entire episode
+
+    Input:
+    :episode - {Tensor} a tensor sequence of joint positions sampled from the multivariate normal distribution
+    :jointIds - {List} a list of joint ids
+    :Horizon - {Int} the horizon length for the MPC-CEM
+    :goalCoord - {Tensor} the coordinates of the goal for the end-effector
+    :distToGoal - {Tensor} the remaining distance from the end-effector's position to goal
+    :neuralNet - {nn} our policy
+    :initState - {List} the initial state of the UR5
+
+    Returns:
+    :reward - {Tensor} the total cost/reward of the entire episode
+    """
     numJoints = len(jointIds)
     reward = 0
+    state0 = initState
     for h in range(Horizon):
         start = h * numJoints
         end = start + numJoints
         action = episode[start:end]
-        reward += getReward(action, jointIds, futureStates[h], neuralNet, initState)
+        action = torch.Tensor(action)
+        state1 = getStateFromNN(neuralNet, action, state0)
+#       reward += getReward(action, jointIds, futureStates[h], neuralNet, initState)
+        reward += getReward(action, jointIds, goalCoords, distToGoal, state0, state1)
+        state0 = state1
     return reward
-
 
 def main():
     # Load Neural Network instead of pybullet stuff
     neuralNet, stateLength, actionLength = loadNN()
 
+    initialTime = time.time() # Starting time
+
+    # Random seed every run so the neural net is trained correctly
     torch_seed = np.random.randint(low=0, high=1000)
     np_seed = np.random.randint(low=0, high=1000)
     py_seed = np.random.randint(low=0, high=1000)
@@ -207,19 +288,32 @@ def main():
         'initCoords': initCoords
     }
 
-    traj = makeTrajectory(initCoords, goalCoords)
+    # Calculate the distance from initial coordinates to goal coordinates
+    distToGoal = dist(torch.Tensor(initCoords), torch.Tensor(goalCoords))
+
+    # traj = makeTrajectory(initCoords, goalCoords)
     print("initCoords:\t", initCoords)
     print("initState:\t", initState)
     print("goalCoords:\t", goalCoords)
-    print("traj:\n", traj)
+    # print("traj:\n", traj)
     
     # Constants:
-    Iterations = len(traj) # N - envSteps
-    Epochs = 40 # T - trainSteps
-    Episodes = 200 # G - plans
-    Horizon = 10 # H - horizonLength
-    TopKEps = int(0.3*Episodes)
-    # jointMins,jointMaxes = getLimitPos(ACTIVE_JOINTS, uid)
+    # Iterations = len(traj) # N - envSteps
+    # Epochs = 40 # T - trainSteps
+    # Episodes = 200 # G - plans
+    # Horizon = 10 # H - horizonLength
+    # TopKEps = int(0.3*Episodes)
+
+    # Constants:
+    MAX_ITERATIONS = 3 # Program will quit after failing to reach goal for this number of iterations
+    # Iterations = len(traj) # N - envSteps
+    Iterations = MAX_ITERATIONS # N - envSteps
+    Epochs = 20 # T - trainSteps
+    Episodes = 1200 # G - plans
+    Horizon = 1 # H - horizonLength
+    TopKEps = int(0.15*Episodes) # how many episodes to use to calculate the new mean and covariance for the next epoch
+
+    # Getting the joints' lower and upper limits
     jointMins = [-np.pi, -np.pi, -np.pi, -np.pi, -np.pi, -np.pi, 0, -0.04]
     jointMaxes = [np.pi, np.pi, np.pi, np.pi, np.pi, np.pi, 0.04, 0]
     jointMins = jointMins*Horizon
@@ -227,38 +321,71 @@ def main():
     jointMins = torch.Tensor(jointMins)
     jointMaxes = torch.Tensor(jointMaxes)
 
+    # List of final state-action-state pairs
     saveRun = []
     saveAction = []
 
+    # Final end-effector positions
     finalEePos = []
+
+    # Time per iteration taken
+    iterationTimes = []
+
+    # The loop for stepping through each environment steps
     for envStep in range(Iterations):
+        startTime = time.time()
         print(f"Running Iteration {envStep} ...")
 
+        # Calculate distance from start to goal
+        eePos = initCoords
+        distError = dist(eePos, goalCoords)
+        print("prevDistToGoal:\t", distError)
+
+        # Initialize mean and covariance
         mu = torch.Tensor([0]*(len(ACTIVE_JOINTS) * Horizon))
         cov = torch.eye(len(mu)) * ((np.pi/2) ** 2)
 
-        futureStates = []
-        for h in range(Horizon):
-            if envStep + h > len(traj) - 1:
-                futureStates.append(traj[-1])
-            else:
-                futureStates.append(traj[envStep + h])
-        futureStates = torch.stack(futureStates)
+        # futureStates = []
+        # for h in range(Horizon):
+        #     if envStep + h > len(traj) - 1:
+        #         futureStates.append(traj[-1])
+        #     else:
+        #         futureStates.append(traj[envStep + h])
+        # futureStates = torch.stack(futureStates)
 
-        epsMem = []
+        epsMem = [] # List to store all episodes and their associated costs
+
+        # The loop for improving the distribution
         for e in range(Epochs):
             print(f"Epoch {e}")
-            distr = torch.distributions.MultivariateNormal(mu, cov)
-            for eps in range (Episodes):
-                episode = distr.sample()
-                episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
-                cost = getEpsReward(episode, ACTIVE_JOINTS, Horizon, futureStates, neuralNet, initState)
-                epsMem.append((episode,cost))
 
+            # Initialize the distribution which we sample our actions from
+            distr = torch.distributions.MultivariateNormal(mu, cov)
+
+            # The loop for generating all the required episodes
+            for eps in range (Episodes):
+                episode = distr.sample() # Sample an episode of actions
+                
+                # Make sure samples don't exceed the joints' limit
+                episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
+                
+                # Calculates the cost of each episode
+                cost = getEpsReward(episode, ACTIVE_JOINTS, Horizon, goalCoords, distToGoal, neuralNet, initState)
+                # cost = getEpsReward(episode, ACTIVE_JOINTS, Horizon, futureStates, neuralNet, initState)
+                
+                epsMem.append((episode,cost)) # Save the episodes and their associated costs
+
+            # Sort episodes by cost, ascending
             epsMem = sorted(epsMem, key = lambda x: x[1])
+
+            # Keep the top K episodes
             epsMem = epsMem[0:TopKEps]
+
+            # Remove the cost element from these episodes
             topK = [x[0] for x in epsMem]
             topK = torch.Tensor(topK)
+
+            # Calculate the new mean and covariance
             mu = torch.mean(topK, axis = 0)
             std = torch.std(topK, axis = 0)
             var = torch.square(std)
@@ -267,8 +394,14 @@ def main():
             cov = torch.Tensor(np.diag(var))
             currEpsNum = Episodes - TopKEps
 
+        # Extract the best action
         bestAction = epsMem[0][0][0:len(ACTIVE_JOINTS)]
         saveAction.append(bestAction)
+
+        # Save the time taken by this iteration
+        iterationTime = time.time() - startTime
+        iterationTimes.append(iterationTime)
+
         # saveAction.extend(initState[8:-1])
         
         # applyAction(uid, bestAction)
