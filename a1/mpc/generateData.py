@@ -10,6 +10,17 @@ import sys
 robotHeight = 0.420393
 
 def loadDog(pos, yaw):
+    '''
+    Description:
+    Loads a dog model from the pybullet server with the given position and yaw.
+
+    Inputs:
+    :pos - {list} - [x, y, z] position of the dog
+    :yaw - {float} - yaw of the dog
+
+    Returns:
+    :quadruped - {int} - id of the loaded dog
+    '''
     # class Dog:
     p.connect(p.DIRECT)
     # p.connect(p.GUI)
@@ -52,6 +63,17 @@ def loadDog(pos, yaw):
     return maxForceId, quadruped, jointIds
 
 def getLimitPos(jointIds, quadruped):
+    '''
+    Description:
+    Gets the maximum and minimum position of the joints in the quadruped.
+    
+    Inputs:
+    :jointIds - {list} - list of joint ids
+    :quadruped - {int} - id of the quadruped
+    
+    Returns:
+    :limitPos - {list} - list of maximum and minimum positions of the joints
+    '''
     mins = []
     maxes = []
     for id in jointIds:
@@ -61,6 +83,17 @@ def getLimitPos(jointIds, quadruped):
     return mins, maxes
 
 def getState(goal, quadruped):
+    '''
+    Description:
+    Gets the current state of the quadruped.
+    
+    Inputs:
+    :goal - {list} - [x, y, z] position of the goal
+    :quadruped - {int} - id of the quadruped
+    
+    Returns:
+    :state - {list} - list of current positions of the joints
+    '''
     # ideal height for dog to maintain
     global robotHeight
     hips = []
@@ -84,6 +117,16 @@ def getState(goal, quadruped):
 
 
 def getFinalState(quadruped):
+    '''
+    Description:
+    Gets the final state of the quadruped.
+    
+    Inputs:
+    :quadruped - {int} - id of the quadruped
+    
+    Returns:
+    :state - {list} - list of current positions of the joints
+    '''
     state = []
     # [FR, FL, RR, RL]
     hipIds = [2,6,10,14]
@@ -97,6 +140,19 @@ def getFinalState(quadruped):
 
 
 def getReward(goal, action, jointIds, quadruped):
+    '''
+    Description:
+    Gets the reward for the current state of the quadruped.
+
+    Inputs:
+    :goal - {list} - [x, y, z] position of the goal
+    :action - {list} - [x, y, z] position of the action
+    :jointIds - {list} - list of joint ids
+    :quadruped - {int} - id of the quadruped
+
+    Returns:
+    :reward - {float} - reward for the current state
+    '''
     # print(action)
     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
     p.stepSimulation()
@@ -108,6 +164,20 @@ def getReward(goal, action, jointIds, quadruped):
     return reward
 
 def getEpsReward(goal, eps, jointIds, quadruped, Horizon):
+    '''
+    Description:
+    Gets the reward for the episode.
+
+    Inputs:
+    :goal - {list} - [x, y, z] position of the goal
+    :eps - {list} - episode
+    :jointIds - {list} - list of joint ids
+    :quadruped - {int} - id of the quadruped
+    :Horizon - {int} - horizon of the episode
+
+    Returns:
+    :reward - {float} - reward for the episode
+    '''
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):

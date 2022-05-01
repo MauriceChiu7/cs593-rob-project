@@ -9,6 +9,16 @@ import os
 robotHeight = 0.420393
 
 def loadDog():
+    '''
+    Description:
+    Loads the dog model from the file
+
+    Inputs:
+    None
+
+    Returns:
+    :quadruped {int}: quadruped model id
+    '''
     # class Dog:
     p.connect(p.DIRECT)
     plane = p.loadURDF("../../unitree_pybullet/data/plane.urdf")
@@ -54,6 +64,17 @@ def loadDog():
     return maxForceId, quadruped, jointIds
 
 def getLimitPos(jointIds, quadruped):
+    '''
+    Description:
+    Gets the limits of the joints
+
+    Inputs:
+    :jointIds {list}: list of joint ids
+    :quadruped {int}: quadruped model id
+
+    Returns:
+    :limits {list}: list of limits
+    '''
     mins = []
     maxes = []
     for id in jointIds:
@@ -63,6 +84,16 @@ def getLimitPos(jointIds, quadruped):
     return mins, maxes
 
 def getState(quadruped):
+    '''
+    Description:
+    Gets the state of the quadruped
+
+    Inputs:
+    :quadruped {int}: quadruped model id
+
+    Returns:
+    :state {list}: list of state
+    '''
     # ideal height for dog to maintain
     global robotHeight
     hips = []
@@ -86,6 +117,16 @@ def getState(quadruped):
 
 
 def getFinalState(quadruped):
+    '''
+    Description:
+    Gets the final state of the quadruped
+
+    Inputs:
+    :quadruped {int}: quadruped model id
+
+    Returns:
+    :state {list}: list of state
+    '''
     state = []
     # [FR, FL, RR, RL]
     hipIds = [2,6,10,14]
@@ -99,6 +140,18 @@ def getFinalState(quadruped):
 
 
 def getReward(action, jointIds, quadruped):
+    '''
+    Description:
+    Gets the reward for the action
+
+    Inputs:
+    :action {list}: list of action
+    :jointIds {list}: list of joint ids
+    :quadruped {int}: quadruped model id
+
+    Returns:
+    :reward {float}: reward
+    '''
     # print(action)
     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
     p.stepSimulation()
@@ -110,6 +163,19 @@ def getReward(action, jointIds, quadruped):
     return reward
 
 def getEpsReward(eps, jointIds, quadruped, Horizon):
+    '''
+    Description:
+    Gets the reward for the episode
+
+    Inputs:
+    :eps {list}: list of action in episode
+    :jointIds {list}: list of joint ids
+    :quadruped {int}: quadruped model id
+    :Horizon {int}: horizon
+
+    Returns:
+    :reward {float}: reward
+    '''
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):

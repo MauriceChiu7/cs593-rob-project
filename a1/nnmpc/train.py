@@ -16,6 +16,16 @@ actionRange = [1.60570288, 5.2359879, 1.78023583, 1.60570288, 5.2359879, 1.78023
 
 # Neural Network
 class NeuralNetwork(nn.Module):
+    '''
+    Description:
+    Loads the neural network from the file
+
+    Inputs:
+    None
+
+    Returns:
+    :model {torch.nn.Module}: neural network model
+    '''
     def __init__(self, stateLength, actionLength):
         super(NeuralNetwork, self).__init__()
 
@@ -35,6 +45,16 @@ class NeuralNetwork(nn.Module):
 
 
 def normalizeState(state):
+    '''
+    Description:
+    Normalizes the state
+
+    Inputs:
+    state {list}: state to be normalized
+
+    Returns:
+    :normalizedState {list}: normalized state
+    '''
     global minState, stateRange
     diff = np.subtract(state, minState)
     normalState = diff/stateRange
@@ -49,6 +69,16 @@ def normalizeAction(action):
     
 # TODO: normalize inputs and outputs
 def train():
+    '''
+    Description:
+    Trains the neural network
+
+    Inputs:
+    None
+
+    Returns:
+    None
+    '''
     # define model name
     modelName = "V1_Model"
 

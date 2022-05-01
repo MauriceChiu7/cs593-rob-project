@@ -11,6 +11,16 @@ robotHeight = 0.420393
 
 
 def getState(quadruped):
+    '''
+    Description:
+    Get the current state of the robot.
+
+    Inputs:
+    :quadruped - {int} - the id of the robot dog
+
+    Returns:
+    :state - {torch.Tensor} - the state of the robot
+    '''
     # ideal height for dog to maintain
     global robotHeight
     hips = []
@@ -33,6 +43,18 @@ def getState(quadruped):
     return state 
 
 def getReward(action, jointIds, quadruped):
+    '''
+    Description:
+    This function returns the reward for the given action
+
+    Inputs:
+    :action - {torch.Tensor} - the action to be taken
+    :jointIds - {list} - list of joint ids
+    :quadruped - {int} - the id of the robot dog
+
+    Outputs:
+    :reward - {float} - the reward for the given action
+    '''
     # print(action)
     # p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
     # p.stepSimulation()
@@ -44,6 +66,18 @@ def getReward(action, jointIds, quadruped):
     return reward
 
 def loadDog():
+    '''
+    Description:
+    This function loads the dog and returns the id of the dog, the joint ids, and the max force id
+
+    Inputs:
+    None
+
+    Outputs:
+    :quadruped - {int} - the id of the robot dog
+    :jointIds - {list} - list of joint ids
+    :maxForceId - {int} - the id of the max force joint
+    '''
     p.connect(p.GUI)
     plane = p.loadURDF("plane.urdf")
     p.setGravity(0,0,-9.8)

@@ -16,6 +16,18 @@ counter = 0
 YOU CAN SET THE START POSITION AND ORIENTATION OF THE A1 ROBOT HERE """
 
 def loadDog():
+    '''
+    Description:
+    Loads the dog model and returns the quadruped object and joint ids
+    
+    Inputs:
+    None
+    
+    Returns:
+    :maxForceId - {int} - The id of the max force joint
+    :quadruped - {int} - The quadruped object
+    :jointIds - {list} - The list of joint ids
+    '''
     # class Dog:
     p.connect(p.DIRECT)
     plane = p.loadURDF("plane.urdf")
@@ -57,6 +69,18 @@ def loadDog():
 """THIS FUNCTION GIVES US THE MAX AND MIN ANGLES OF THE JOINTS PASSED IN FOR THE A1 DOG"""
 
 def getLimitPos(jointIds, quadruped):
+    '''
+    Description:
+    Returns the maximum and minimum positions of the joints
+
+    Inputs:
+    :jointIds - {list} - The list of joint ids
+    :quadruped - {int} - The quadruped object
+
+    Returns:
+    :maxPos - {list} - The maximum positions of the joints
+    :minPos - {list} - The minimum positions of the joints
+    '''
     mins = []
     maxes = []
     for id in jointIds:
@@ -70,6 +94,16 @@ def getLimitPos(jointIds, quadruped):
 IT RETURNS (PITCH, ROLL, YAW, DISTANCE FROM GOAL, AND HEIGHT ERROR)"""
 
 def getState(quadruped):
+    '''
+    Description:
+    Returns the state of the robot
+    
+    Inputs:
+    :quadruped - {int} - The robot dog object
+    
+    Returns:
+    :state - {list} - The state of the robot
+    '''
     # ideal height for dog to maintain
     global robotHeight
     hips = []
@@ -96,6 +130,16 @@ def getState(quadruped):
 WE USE THIS FUNCTION TO RETURN THE STATE TO TRAIN THE NEURAL NET WITH"""
 
 def getFinalState(quadruped):
+    '''
+    Description:
+    Returns the final hip and center position of the A1 dog
+
+    Input:
+    :quadruped - {int} - The A1 dog object
+
+    Returns:
+    :state - {list} - The final hip and center position of the A1 dog
+    '''
     state = []
     # [FR, FL, RR, RL]
     hipIds = [2,6,10,14]
@@ -114,6 +158,19 @@ YOU CAN ADJUST THE WEIGHTS OF WHATS REWARDED HERE
 """
 
 def getReward(action, jointIds, quadruped):
+    '''
+    Description:
+    Returns the reward of a state
+
+    Input:
+    :action - {list} - The action of the robot
+    :jointIds - {list} - The list of joint ids
+    :quadruped - {int} - The quadruped object
+
+    Returns:
+    :reward - {float} - The reward of the state
+    '''
+
     # print(action)
     # This is for the purpose of saving data
     pair = []
@@ -149,6 +206,19 @@ IT CALLS THE GETREWARD FUNCTION ON EACH STATE IN THE EPISODE TO DO THIS.
 """
 
 def getEpsReward(eps, jointIds, quadruped, Horizon):
+    '''
+    Description:
+    Returns the reward of an episode
+
+    Input:
+    :eps - {list} - The episode
+    :jointIds - {list} - The list of joint ids
+    :quadruped - {int} - The quadruped object
+    :Horizon - {int} - The horizon of the episode
+
+    Returns:
+    :reward - {float} - The reward of the episode
+    '''
     saPairs = []
     numJoints = len(jointIds)
     reward = 0
