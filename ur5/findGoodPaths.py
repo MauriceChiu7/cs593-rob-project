@@ -1,4 +1,5 @@
-from sklearn.metrics import mean_squared_error as mse
+# from sklearn.metrics import mean_squared_error as mse
+import numpy as np
 import os
 import pickle
 import matplotlib.pyplot as plt
@@ -21,7 +22,8 @@ for filename in os.listdir("./trainingData"):
     # print(traj)
     # print(sim)
     
-    error = mse(traj, sim)
+    # error = mse(traj, sim)
+    error = np.square(np.subtract(traj,sim)).mean()
     # print(error)
 
     print(f"{filename} has MSE: {error}")
