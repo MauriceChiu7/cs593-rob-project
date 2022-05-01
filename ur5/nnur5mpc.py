@@ -442,6 +442,8 @@ def main():
 
     # with open(errorFolder + f"traj.pkl", 'wb') as f:
     #     pickle.dump(traj, f)
+    avgIterationTime = np.average(iterationTimes)
+    print("avgIterationTime: ", time.strftime('%H:%M:%S', time.gmtime(avgIterationTime)))
 
     # while 1:
     #     p.stepSimulation()
