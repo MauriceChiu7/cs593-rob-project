@@ -184,8 +184,8 @@ def getReward(action, jointIds, target, distToGoal, state, next_state):
 
     # next_state = getState(uid)
 
-    distCost = dist(next_state[48], target)
-    elbowCost = dist(next_state[45], state[2])
+    distCost = dist(next_state[23:26], target)
+    elbowCost = dist(next_state[14:17], state[14:17])
     groundColliCost = 0
 
     positions = next_state[51:75]
@@ -283,7 +283,7 @@ def main():
         -0.10785322,  0.07068605, -0.86438095, -0.25777365,  0.06418841, -0.76471571,
         -0.25793238,  0.07710409, -0.67473704, -0.0150754,   0.16944933
     ]
-    initCoords = [-0.8144, -0.1902,  0.0707]
+    initCoords = initState[23:26]
 
     goalCoords = torch.Tensor(goalCoords)
     initState = torch.Tensor(initState)
