@@ -241,16 +241,20 @@ def getEpsReward(episode, jointIds, Horizon, goalCoords, distToGoal, neuralNet, 
     numJoints = len(jointIds)
     reward = 0
     state0 = initState
+
+    episodeStates = []
+
     for h in range(Horizon):
         start = h * numJoints
         end = start + numJoints
         action = episode[start:end]
         action = torch.Tensor(action)
         state1 = getStateFromNN(neuralNet, action, state0)
+        episodeStates.append(state1.tolist())
 #       reward += getReward(action, jointIds, futureStates[h], neuralNet, initState)
         reward += getReward(action, jointIds, goalCoords, distToGoal, state0, state1)
         state0 = state1
-    return reward
+    return reward, episodeStates
 
 def main():
     # Load Neural Network instead of pybullet stuff
@@ -338,13 +342,17 @@ def main():
     # Time per iteration taken
     iterationTimes = []
 
+    # Initialize EE starting position
+    eePos = initCoords
+
     # The loop for stepping through each environment steps
     for envStep in range(Iterations):
         startTime = time.time()
         print(f"Running Iteration {envStep} ...")
 
         # Calculate distance from start to goal
-        eePos = initCoords
+        print("eePos:\t", eePos)
+        print("goalCoords:\t", goalCoords)
         distError = dist(eePos, goalCoords)
         print("prevDistToGoal:\t", distError)
 
@@ -377,19 +385,19 @@ def main():
                 episode = torch.clamp(episode, jointMins, jointMaxes).tolist()
                 
                 # Calculates the cost of each episode
-                cost = getEpsReward(episode, ACTIVE_JOINTS, Horizon, goalCoords, distToGoal, neuralNet, initState)
+                cost, episodeStates = getEpsReward(episode, ACTIVE_JOINTS, Horizon, goalCoords, distToGoal, neuralNet, initState)
                 # cost = getEpsReward(episode, ACTIVE_JOINTS, Horizon, futureStates, neuralNet, initState)
                 
-                epsMem.append((episode,cost)) # Save the episodes and their associated costs
+                epsMem.append((episode, cost, episodeStates)) # Save the episodes and their associated costs
 
             # Sort episodes by cost, ascending
             epsMem = sorted(epsMem, key = lambda x: x[1])
 
             # Keep the top K episodes
-            epsMem = epsMem[0:TopKEps]
+            epsMemTopK = epsMem[0:TopKEps]
 
             # Remove the cost element from these episodes
-            topK = [x[0] for x in epsMem]
+            topK = [x[0] for x in epsMemTopK]
             topK = torch.Tensor(topK)
 
             # Calculate the new mean and covariance
@@ -402,7 +410,9 @@ def main():
             currEpsNum = Episodes - TopKEps
 
         # Extract the best action
+        print("epsMem:\n", epsMem[0])
         bestAction = epsMem[0][0][0:len(ACTIVE_JOINTS)]
+        eePos = epsMem[0][2][0][23:26]
         saveAction.append(bestAction)
 
         # Save the time taken by this iteration
