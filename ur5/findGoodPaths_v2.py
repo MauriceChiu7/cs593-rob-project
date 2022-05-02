@@ -1,0 +1,78 @@
+# from sklearn.metrics import mean_squared_error as mse
+import numpy as np
+import os
+import pickle
+import matplotlib.pyplot as plt
+
+goodPaths = []
+
+for filename in os.listdir("./trainingData"):
+    path = filename.split("_")[1].split(".")[0]
+    
+    print(filename)
+    
+    
+    with open(f"./trainingData/{filename}", 'rb') as f:
+        traj = pickle.load(f)
+    
+    print(len(traj))
+    if len(traj) < 3:
+        goodPaths.append(int(path))
+
+    # print(traj)
+    
+
+    # print(filename)
+    # print(path)
+
+    # exit()
+    
+    # trajFile = f"./error_old/traj_{path}.pkl"
+    # simFile = f"./error_old/finalEePos_{path}.pkl"
+
+    # try:
+    #     with open(trajFile, 'rb') as f:
+    #         traj = pickle.load(f)
+    # except:
+    #     pass
+
+    # try:
+    #     with open(simFile, 'rb') as f:
+    #         sim = pickle.load(f)
+    # except:
+    #     pass
+
+    # print(traj)
+    # print(sim)
+    # error = mse(traj, sim)
+    # try: 
+    #     error = np.square(np.subtract(traj,sim)).mean()
+    # except:
+    #     pass
+    # print(error)
+
+    # print(f"{filename} has MSE: {error}")
+
+#     if not os.path.exists(f"./figures/traj_comp_{path}.png"):
+#         print(f"creating figure for path {path}")
+#         fig = plt.figure()
+#         ax = plt.axes(projection='3d')
+#         ax.set_aspect('auto')
+#         ax.set_xlim([-0.8,0.8])
+#         ax.set_ylim([-0.8,0.8])
+#         ax.set_zlim([-0,0.8])
+#         ax.scatter3D(traj[:,0], traj[:,1], traj[:,2], c='green')
+#         ax.scatter3D(sim[:,0], sim[:,1], sim[:,2], c='red')
+#         plt.figtext(0.1, 0.95, f"path {path}")
+#         plt.savefig(f"./figures/traj_comp_{path}.png")
+#         plt.close()
+
+#     if error <= 0.02:
+#         goodPaths.append(int(path))
+
+goodPaths.sort()
+print(f"Good Paths: {goodPaths}")
+
+percentage = len(goodPaths)/len(os.listdir("./trainingData"))
+print(f"{len(goodPaths)} out of {len(os.listdir('./trainingData'))} are good paths. {percentage*100}%")
+

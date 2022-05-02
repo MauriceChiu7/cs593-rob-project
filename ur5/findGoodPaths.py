@@ -17,16 +17,24 @@ for filename in os.listdir("./trainingDataWithEE_old"):
     trajFile = f"./error_old/traj_{path}.pkl"
     simFile = f"./error_old/finalEePos_{path}.pkl"
 
-    with open(trajFile, 'rb') as f:
-        traj = pickle.load(f)
-    
-    with open(simFile, 'rb') as f:
-        sim = pickle.load(f)
-    
+    try:
+        with open(trajFile, 'rb') as f:
+            traj = pickle.load(f)
+    except:
+        pass
+
+    try:
+        with open(simFile, 'rb') as f:
+            sim = pickle.load(f)
+    except:
+        pass
     # print(traj)
     # print(sim)
     # error = mse(traj, sim)
-    error = np.square(np.subtract(traj,sim)).mean()
+    try: 
+        error = np.square(np.subtract(traj,sim)).mean()
+    except:
+        pass
     # print(error)
 
     print(f"{filename} has MSE: {error}")
