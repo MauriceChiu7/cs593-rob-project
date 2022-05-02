@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# run the ur5.py in a loop
+
 for i in {73..120}
 do
     # echo $i

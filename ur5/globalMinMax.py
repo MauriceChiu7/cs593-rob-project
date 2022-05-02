@@ -1,3 +1,5 @@
+# Finds the global minimum and maximum from all generated data.
+
 import os
 import pickle
 import numpy as np

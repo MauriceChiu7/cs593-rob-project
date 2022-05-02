@@ -85,7 +85,6 @@ def loadUR5():
     :uid - {int} The unique id of the robot.
 
     '''
-    p.loadURDF(os.path.join(pybullet_data.getDataPath(), "UR5/ur5.urdf"), [0, 0, 0.1])
     p.resetDebugVisualizerCamera(cameraDistance=1.8, cameraYaw=-45, cameraPitch=-45, cameraTargetPosition=(0,0,0.1))
     # p.resetDebugVisualizerCamera(cameraDistance=0.02, cameraYaw=90, cameraPitch=-0.125, cameraTargetPosition=(0,0.25,0.1))
     path = f"{os.getcwd()}/../ur5pybullet"

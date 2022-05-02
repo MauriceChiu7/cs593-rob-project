@@ -1,5 +1,5 @@
 # finds good paths for the ur5, prints out statistics
-# from sklearn.metrics import mean_squared_error as mse
+
 import numpy as np
 import os
 import pickle

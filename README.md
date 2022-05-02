@@ -35,27 +35,24 @@ Will need the files in `/cs593-rob-project/ur5pybullet` to run properly. These f
 Uses the PyBullet simulator to load UR5 onto a plane and use MPC to plan for a path. 
 
 **Produces:**
-Upon completion the planning process, file `ur5sample.pkl` will be saved to `/cs593-rob-project/ur5/trainindDataWithEE` for playing back.
+Upon completion the planning process, file `ur5sample.pkl` will be saved to `/cs593-rob-project/ur5/trainindData` for playing back.
 
 ---
 
-**To generate multiple paths, run: `python3 generatePathsUr5.py`**
+**To generate multiple paths, run: `bash generatePathsUr5.sh`**
 
 **Description:**
 Calls the same code that's in `ur5.py` in a loop. 
-Takes in two commandline arguments: starting_index and ending_index. Including the starting_index and excluding the ending_index.
-These indices are only for naming the generated paths so they don't overwrite each other.
-For example: `python3 generatePathsUr5.py 120 123` will generate 3 paths, `ur5sample_120.pkl`, `ur5sample_121.pkl`, `ur5sample_122.pkl`.
 
 **Produces:**
-Upon completion, multiple files named in the format `ur5sample_{index}.pkl` will be saved to `/cs593-rob-project/ur5/trainindDataWithEE`.
+Upon completion, multiple files named in the format `ur5sample_{index}.pkl` will be saved to `/cs593-rob-project/ur5/trainindData`.
 
 ---
 
 **To train the neural net with UR5 paths, run: `python3 train.py`**
 
 **Description:**
-This program will take all of the paths generated from the `ur5.py` or `generatePathsUr5.py` from `/cs593-rob-project/ur5/trainindDataWithEE` and train the neural network.
+This program will take all of the paths generated from the `ur5.py` or `generatePathsUr5.py` from `/cs593-rob-project/ur5/trainindData` and train the neural network.
 
 **Produces:**
 1. The model of the trained neural net: `UR5_V1_Model_2Layers_model1.pt` will be saved to `/cs593-rob-project/ur5/mult_models/UR5_V1_Model_2Layers`
@@ -100,6 +97,7 @@ N/A
 2. `plotTrajComp.py` plots the trajectory and the end-effector positions at each environment step for a single path. To specify which path to plot, change the path number in line 14 of the code `path = 37` to the desired path number.
 3. `globalMinMax.py` finds you the global minimum and global maximum values for the x, y, and z coordinates of the end-effector from all of the generated paths.
 4. `findGoodPaths.py` compares and calculates the MSE between the trajectory and the end-effector positions at each environment step for every paths generated using data from `/cs593-rob-project/ur5/error`, prints out all the MSE values, all the good paths, and a percentage that indicates how many of them were good paths. Also produces figures and saves them as `traj_comp_{index}.png` at `/cs593-rob-project/ur5/figures`.
+5. `findGoodPaths_v2.py` finds good paths by checking the length of the episodes and prints out some statistics.
 
 ---
 

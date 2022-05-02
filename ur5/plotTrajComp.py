@@ -25,8 +25,8 @@ def main():
     ax.set_xlim([-0.8,0.8])
     ax.set_ylim([-0.8,0.8])
     ax.set_zlim([-0,0.8])
-    trajFile = f"./error/traj_{path}.pkl"
-    simFile = f"./error/finalEePos_{path}.pkl"
+    trajFile = f"./error_old/traj_{path}.pkl"
+    simFile = f"./error_old/finalEePos_{path}.pkl"
     with open(trajFile, 'rb') as f:
         traj = pickle.load(f)
     with open(simFile, 'rb') as f:
