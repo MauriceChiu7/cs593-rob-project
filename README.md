@@ -52,7 +52,7 @@ Upon completion, multiple files named in the format `ur5sample_{index}.pkl` will
 **To train the neural net with UR5 paths, run: `python3 train.py`**
 
 **Description:**
-This program will take all of the paths generated from the `ur5.py` or `generatePathsUr5.py` from `/cs593-rob-project/ur5/trainindData` and train the neural network.
+This program will take all of the paths generated from the `ur5.py` or `generatePathsUr5.sh` from `/cs593-rob-project/ur5/trainindData` and train the neural network.
 
 **Produces:**
 1. The model of the trained neural net: `UR5_V1_Model_2Layers_model1.pt` will be saved to `/cs593-rob-project/ur5/mult_models/UR5_V1_Model_2Layers`
@@ -81,11 +81,11 @@ Please pass in the optional arguments to play back your desired simulations:
 2. `'-pn', '--path-number', type=int, default=0`
    - You can specify which path to playback by giving it a path index. Use `-pn 33` to play back path 33 if using `--mode mpc`.
 
-All of the paths files required are stored in `/cs593-rob-project/ur5/trainingDataWithEE`
+All of the paths files required are stored in `/cs593-rob-project/ur5/trainingData`
 
 If the file this program is trying to read doesn't exist, please be sure to run one of the following programs first:
 1. `python3 ur5.py`
-2. `python3 generatePathsUr5.py`
+2. `python3 generatePathsUr5.sh`
 
 **Produces:**
 N/A
