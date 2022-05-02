@@ -46,8 +46,7 @@ def normalizeAction(action):
     normalAction = diff/actionRange
     return normalAction.tolist()
 
-    
-# TODO: normalize inputs and outputs
+
 def train():
     # define model name
     modelName = "V1_Model"
@@ -64,7 +63,7 @@ def train():
     iterations = 150
     epochs = 5
     episodes = 50
-  
+
     allData = []
     folder = "./NEWmultActions_I150_E5_Eps50/MultRun_5.pkl"
     with open(folder, 'rb') as f:
