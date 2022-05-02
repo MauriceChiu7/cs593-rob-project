@@ -164,6 +164,8 @@ Upon completion, many files will be produced:
 
 **To train the neural network for A1, be in this directory: `/cs593-rob-project/a1/nnmpc` and run: `python3 train.py` or `python3 trainCuda.py`**
 
+Note: `/cs593-rob-project/a1/nnmpc/NEWtrain.py` trains on updated state vector, but data needs to match (it does not match right now).
+
 **Description:**
 This program reads in the state-action-state pairs generated from `/cs593-rob-project/a1/nnmpc/generateData.py` stored in `/cs593-rob-project/a1/nnmpc/saData_Mult` and trains the neural network. It does so by first shuffling all the data, spliting them into a training data set and a testing data set, and then use the data from the training data set to train the neural network.
 
@@ -175,6 +177,8 @@ This program reads in the state-action-state pairs generated from `/cs593-rob-pr
 ---
 
 **To do MPC with our trained neural net, be in this directory: `/cs593-rob-project/a1/nnmpc` and run: `/cs593-rob-project/a1/nnmpc/run.py`**
+
+Note: `/cs593-rob-project/a1/nnmpc/NEWrun.py` truns on model that was trained on updated state vector.
 
 **Description:**
 This program is similar to that of `/cs593-rob-project/a1/mpc/run.py`. The difference is that we've taken out the simulator PyBullet. And in place of PyBullet, we have our trained NN to predict the next states for our robot.

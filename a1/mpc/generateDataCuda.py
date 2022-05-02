@@ -7,26 +7,27 @@ import pickle
 import os
 import sys
 
-robotHeight = 0.420393
-#device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
-#print(device)
-#exit()
+robotHeight = 0.420393  # Recommended robot height
+
 
 def loadDog(pos, yaw):
-    # class Dog:
+    """
+    Description: loads A1 and the environment
+
+    Returns:
+    :quadruped - {Int} ID of the robot
+    :jointIds - {List of Int} list of joint IDs
+    
+    """
+
     p.connect(p.DIRECT)
-    # p.connect(p.GUI)
     plane = p.loadURDF("../../unitree_pybullet/data/plane.urdf")
     p.setGravity(0,0,-9.8)
     p.setTimeStep(1./50)
-    #p.setDefaultContactERP(0)
-    #urdfFlags = p.URDF_USE_SELF_COLLISION+p.URDF_USE_SELF_COLLISION_EXCLUDE_ALL_PARENTS
+
     urdfFlags = p.URDF_USE_SELF_COLLISION
     quadruped = p.loadURDF("../../unitree_pybullet/data/a1/urdf/a1.urdf",[pos[0],pos[1],0.48],p.getQuaternionFromEuler([0,0,yaw]), flags = urdfFlags,useFixedBase=False)
 
-    #enable collision between lower legs
-    # for j in range (p.getNumJoints(quadruped)):
-            # print(p.getJointInfo(quadruped,j))
 
     lower_legs = [2,5,8,11]
     for l0 in lower_legs:
@@ -39,8 +40,6 @@ def loadDog(pos, yaw):
     jointIds=[]
     paramIds=[]
 
-    maxForceId = p.addUserDebugParameter("maxForce",0,100,20)
-
     for j in range (p.getNumJoints(quadruped)):
         p.changeDynamics(quadruped,j,linearDamping=0, angularDamping=0)
         info = p.getJointInfo(quadruped,j)
@@ -50,15 +49,26 @@ def loadDog(pos, yaw):
         if (jointType==p.JOINT_PRISMATIC or jointType==p.JOINT_REVOLUTE):
             jointIds.append(j)
 
-    # print(jointIds)
 
     p.getCameraImage(480,320)
     p.setRealTimeSimulation(0)
 
-    joints=[]
-    return maxForceId, quadruped, jointIds
+    return quadruped, jointIds
 
 def getLimitPos(jointIds, quadruped):
+    """
+    Description: gets lower and upper range of joints 
+
+    Input:
+    :jointIds - {List of Int} list of joint IDs
+    :quadruped - {Int} ID of the robot
+
+    Returns:
+    :mins - {List of Int} list of lower ranges
+    :maxes - {List of Int} list of upper ranges
+    
+    """
+
     mins = []
     maxes = []
     for id in jointIds:
@@ -68,6 +78,17 @@ def getLimitPos(jointIds, quadruped):
     return mins, maxes
 
 def getState(goal, quadruped):
+    """
+    Description: calculates current positions of joints and computes cost parameters
+
+    Input:
+    :quadruped - {Int} ID of the robot
+
+    Returns:
+    :state - {Tensor} bare cost parameters
+    
+    """
+
     # ideal height for dog to maintain
     global robotHeight
     hips = []
@@ -92,6 +113,17 @@ def getState(goal, quadruped):
 
 
 def getFinalState(quadruped):
+    """
+    Description: gets the final state position of the robot after all actions have been applied
+
+    Input:
+    :quadruped - {Int} ID of the robot
+
+    Returns:
+    :state - {List of Int} list of state positions
+    
+    """
+
     state = []
     # [FR, FL, RR, RL]
     hipIds = [2,6,10,14]
@@ -105,6 +137,19 @@ def getFinalState(quadruped):
 
 
 def getReward(goal, action, jointIds, quadruped):
+    """
+    Description: calculates the cost of the given action by adding weights to bare values
+
+    Input:
+    :action - {List of Float} list of positions to be set by setJointMotorControlArray
+    :jointIds - {List of Int} list of joint IDs
+    :quadruped - {Int} ID of the robot
+
+    Returns:
+    :state - {Tensor} cost value of this given action
+    
+    """
+
     # print(action)
     p.setJointMotorControlArray(quadruped, jointIds, p.POSITION_CONTROL, action)
     p.stepSimulation()
@@ -116,7 +161,22 @@ def getReward(goal, action, jointIds, quadruped):
         reward += 1000
     return reward
 
+
 def getEpsReward(goal, eps, jointIds, quadruped, Horizon):
+    """
+    Description: calculates the cost for the entire episode (plan)
+
+    Input:
+    :eps - {List of Int} list of all the actions in the episode [h1_a0,...,h1_a12, h2_a0,...,h2_a12]
+    :jointIds - {List of Int} list of joint IDs
+    :quadruped - {Int} ID of the robot
+    :Horizon - {Int} horizon length
+
+    Returns:
+    :state - {Tensor} cost of the entire episode
+    
+    """
+
     numJoints = len(jointIds)
     reward = 0
     for h in range(Horizon):
@@ -143,12 +203,16 @@ def getEpsReward(goal, eps, jointIds, quadruped, Horizon):
         # time.sleep(0.2)
     
     if startDist < endDist:
-        # print(f"START: {startDist}")
-        # print(f"END: {endDist}")
         reward += 10000
     return reward
 
+
 def main(rollout_index):
+    """
+    Runs the MPC algorithm to find the best set of actions for Unitree A1 robot to reach the goal. The 
+    set of actions are saved in the the "results" folder and can be played back in the playback.py file.
+    """
+
     np_seed = np.random.randint(low=0, high=1000)
     np.random.seed(np_seed)
     pos_x = np.random.uniform(low=-1, high=1)
@@ -163,7 +227,7 @@ def main(rollout_index):
     print(f"\npos: {pos}, yaw: {yaw}")
     print(f"goal: {goal}\n")
 
-    maxForceId, quadruped, jointIds = loadDog(pos, yaw)
+    quadruped, jointIds = loadDog(pos, yaw)
 
     Iterations = 100
     Epochs = 10
@@ -272,13 +336,13 @@ def main(rollout_index):
         saveRun.append(pairs)
 
 
-    
     if not os.path.exists(trainingFolder):
         # create directory if not exist
         os.makedirs(trainingFolder)
 
     with open(trainingFolder + f"sample_{rollout_index}.pkl", 'wb') as f:
         pickle.dump(saveRun, f)
+
 
 if __name__ == '__main__':
     print(sys.argv)

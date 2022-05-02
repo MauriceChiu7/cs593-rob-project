@@ -6,23 +6,35 @@ import matplotlib.pyplot as plt
 
 goodPaths = []
 
-for filename in os.listdir("./trainingDataWithEE"):
+for filename in os.listdir("./trainingDataWithEE_old"):
     path = filename.split("_")[1].split(".")[0]
     
-    # print(filename)
-    # print(path)
+    print(filename)
+    print(path)
+
+    # exit()
     
-    trajFile = f"./error/traj_{path}.pkl"
-    simFile = f"./error/finalEePos_{path}.pkl"
-    with open(trajFile, 'rb') as f:
-        traj = pickle.load(f)
-    with open(simFile, 'rb') as f:
-        sim = pickle.load(f)
-    
+    trajFile = f"./error_old/traj_{path}.pkl"
+    simFile = f"./error_old/finalEePos_{path}.pkl"
+
+    try:
+        with open(trajFile, 'rb') as f:
+            traj = pickle.load(f)
+    except:
+        pass
+
+    try:
+        with open(simFile, 'rb') as f:
+            sim = pickle.load(f)
+    except:
+        pass
     # print(traj)
     # print(sim)
     # error = mse(traj, sim)
-    error = np.square(np.subtract(traj,sim)).mean()
+    try: 
+        error = np.square(np.subtract(traj,sim)).mean()
+    except:
+        pass
     # print(error)
 
     print(f"{filename} has MSE: {error}")
@@ -47,6 +59,6 @@ for filename in os.listdir("./trainingDataWithEE"):
 goodPaths.sort()
 print(f"Good Paths: {goodPaths}")
 
-percentage = len(goodPaths)/len(os.listdir("./trainingDataWithEE"))
-print(f"{len(goodPaths)} out of {len(os.listdir('./trainingDataWithEE'))} are good paths. {percentage*100}%")
+percentage = len(goodPaths)/len(os.listdir("./trainingDataWithEE_old"))
+print(f"{len(goodPaths)} out of {len(os.listdir('./trainingDataWithEE_old'))} are good paths. {percentage*100}%")
 
