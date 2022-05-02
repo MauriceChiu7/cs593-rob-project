@@ -11,6 +11,16 @@ import math
 import pickle
 
 def loadDog():
+    '''
+    Description:
+    Loads the dog model from the file
+
+    Inputs:
+    None
+
+    Returns:
+    :quadruped {int}: quadruped model id
+    '''
     # class Dog:
     p.connect(p.GUI)
     plane = p.loadURDF("plane.urdf")

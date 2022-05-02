@@ -18,6 +18,18 @@ actionRange = [1.60570288, 5.2359879, 1.78023583, 1.60570288, 5.2359879, 1.78023
 
 
 def loadNN(args):
+    '''
+    Description:
+    Loads the NN from the specified file
+
+    Inputs:
+    args: command line arguments
+
+    Returns:
+    :neuralNet- {torch.nn.Module} - The neural network
+    :stateLength- {int} - The length of the state
+    :actionLength- {int} - The length of the action
+    '''
     stateLength = 15
     actionLength = 12
 
@@ -38,6 +50,16 @@ def loadNN(args):
     return neuralNet, stateLength, actionLength
 
 def normalizeState(state):
+    '''
+    Description:
+    Normalizes the state
+
+    Inputs:
+    :state: {list} - The state to be normalized
+
+    Returns:
+    :normState: {torch.Tensor} - The normalized state
+    '''
     global minState, stateRange
     diff = np.subtract(state, minState)
     # exit()
@@ -45,12 +67,32 @@ def normalizeState(state):
     return normalState.tolist()
 
 def normalizeAction(action):
+    '''
+    Description:
+    Normalizes the action
+
+    Inputs:
+    :action: {list} - The action to be normalized
+
+    Returns:
+    :normAction: {torch.Tensor} - The normalized action
+    '''
     global minAction, actionRange
     diff = np.subtract(action, minAction)
     normalAction = diff/actionRange
     return normalAction.tolist()
 
 def unNormalizeState(normState):
+    '''
+    Description:
+    Un-normalizes the state
+
+    Inputs:
+    :normState: {torch.Tensor} - The normalized state
+
+    Returns:
+    :state: {list} - The un-normalized state
+    '''
     normState = normState.detach()
     global minState, stateRange
     prod = np.multiply(normState, stateRange)
@@ -58,6 +100,18 @@ def unNormalizeState(normState):
     return (state.tolist())
 
 def getStateFromNN(neuralNet, action, initialState):
+    '''
+    Description:
+    Predicts the next state given the current state and action
+
+    Inputs:
+    :neuralNet: {torch.nn.Module} - The neural network
+    :action: {list} - The action to be taken
+    :initialState: {list} - The current state
+
+    Returns:
+    :nnPredState: {torch.Tensor} - The predicted state
+    '''
     # Predict the next state with state1 + action
     state_action = []
     s1 = normalizeState(initialState)
@@ -71,6 +125,16 @@ def getStateFromNN(neuralNet, action, initialState):
 
 
 def getWeightedState(nnPredState):
+    '''
+    Description:
+    Gets the weighted state
+
+    Inputs:
+    :nnPredState: {torch.Tensor} - The predicted state
+
+    Returns:
+    :weightedState: {torch.Tensor} - The weighted state
+    '''
     # Get hip and floating base from new state
     hips = nnPredState[:12]
     base_pos = nnPredState[12:]
@@ -95,6 +159,16 @@ def getWeightedState(nnPredState):
 
 
 def getReward(state):
+    '''
+    Description:
+    Gets the reward for the given state
+
+    Inputs:
+    :state: {list} - The state to get the reward for
+
+    Returns:
+    :reward: {float} - The reward
+    '''
     w = torch.Tensor([2000,2000,900,900,300,300,2,1000])
     reward = (w*state). sum().numpy()
     if state[-1] > 0.25:
@@ -103,6 +177,21 @@ def getReward(state):
 
 
 def getEpsReward(neuralNet, actionLength, initialState, episode, jointIds, Horizon):
+    '''
+    Description:
+    Gets the reward for the whole episode
+
+    Inputs:
+    :neuralNet: {torch.nn.Module} - The neural network
+    :actionLength: {int} - The length of the action
+    :initialState: {list} - The initial state
+    :episode: {list} - The episode to get the reward for
+    :jointIds: {list} - The joint ids
+    :Horizon: {int} - The horizon
+
+    Returns:
+    :reward: {float} - The reward
+    '''
     numJoints = len(jointIds)
     reward = 0
     startDist, endDist = 0,0
